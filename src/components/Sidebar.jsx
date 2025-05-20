@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
@@ -62,7 +61,7 @@ const Sidebar = ({ user, closeSidebar }) => {
       case 'store':
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/store' },
-          { icon: FileImport, name: 'Réception des marchandises', path: '/dashboard/store/receive' },
+          { icon: FileInput, name: 'Réception des marchandises', path: '/dashboard/store/receive' },
           { icon: FileText, name: 'Sortie de stock', path: '/dashboard/store/dispatch' },
           { icon: Package, name: 'Stock actuel', path: '/dashboard/store/inventory' },
           { icon: AlertTriangle, name: 'Produits en seuil critique', path: '/dashboard/store/alerts' },
@@ -151,4 +150,3 @@ const Sidebar = ({ user, closeSidebar }) => {
 };
 
 export default Sidebar;
-
