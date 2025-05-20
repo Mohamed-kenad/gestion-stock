@@ -74,7 +74,7 @@ const Login = () => {
 
         <div className="flex items-center justify-between">
           <div className="text-sm">
-            <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
+            <Link to="/auth/register" className="font-medium text-primary-600 hover:text-primary-500">
               Créer un compte
             </Link>
           </div>

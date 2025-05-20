@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Provider } from "react-redux";
 import { store } from "./store";
 
@@ -35,9 +35,12 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Redirect root to login page */}
+            <Route path="/" element={<Navigate to="/auth/login" replace />} />
+            
             {/* Auth Routes */}
-            <Route path="/" element={<AuthLayout />}>
-              <Route index element={<Login />} />
+            <Route path="/auth" element={<AuthLayout />}>
+              <Route index element={<Navigate to="/auth/login" replace />} />
               <Route path="login" element={<Login />} />
               <Route path="register" element={<Register />} />
             </Route>
