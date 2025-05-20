@@ -3,7 +3,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Shield, FolderOpen, Package, 
-  FileText, FilePlus, FileImport, ShoppingCart, DollarSign, 
+  FileText, FilePlus, FileInput, ShoppingCart, DollarSign, 
   Store, BarChart2, Settings, Bell, CheckSquare, History,
   PackageOpen, AlertTriangle, Receipt, FileStack, Repeat,
   PieChart, TrendingUp
