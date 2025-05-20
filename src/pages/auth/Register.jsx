@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../../store/slices/authSlice';
+import { AlertCircle } from 'lucide-react';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -44,7 +45,7 @@ const Register = () => {
     }));
 
     // Navigate to login
-    navigate('/login');
+    navigate('/auth/login');
   };
 
   return (
@@ -56,6 +57,9 @@ const Register = () => {
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
           <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+            </div>
             <div className="ml-3">
               <p className="text-sm text-red-700">{error}</p>
             </div>
@@ -174,7 +178,7 @@ const Register = () => {
         </div>
 
         <div className="text-center">
-          <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500 text-sm">
+          <Link to="/auth/login" className="font-medium text-primary-600 hover:text-primary-500 text-sm">
             Déjà un compte? Se connecter
           </Link>
         </div>
