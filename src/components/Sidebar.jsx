@@ -25,7 +25,7 @@ const Sidebar = ({ user, closeSidebar }) => {
           { icon: Package, name: 'Produits', path: '/dashboard/admin/products' },
           { icon: FileText, name: 'Bons de commande', path: '/dashboard/admin/orders' },
           { icon: FilePlus, name: 'Créer un bon', path: '/dashboard/admin/orders/create' },
-          { icon: FileImport, name: 'Importer un bon', path: '/dashboard/admin/orders/import' },
+          { icon: FileInput, name: 'Importer un bon', path: '/dashboard/admin/orders/import' },
           { icon: FileText, name: 'Tous les bons', path: '/dashboard/admin/orders/all' },
           { icon: ShoppingCart, name: 'Achats', path: '/dashboard/admin/purchases' },
           { icon: DollarSign, name: 'Ventes', path: '/dashboard/admin/sales' },
@@ -37,7 +37,7 @@ const Sidebar = ({ user, closeSidebar }) => {
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/vendor' },
           { icon: FilePlus, name: 'Créer un bon de commande', path: '/dashboard/vendor/orders/create' },
-          { icon: FileImport, name: 'Importer un bon', path: '/dashboard/vendor/orders/import' },
+          { icon: FileInput, name: 'Importer un bon', path: '/dashboard/vendor/orders/import' },
           { icon: FileText, name: 'Mes bons', path: '/dashboard/vendor/orders' },
           { icon: FolderOpen, name: 'Produits par catégorie', path: '/dashboard/vendor/products' },
           { icon: FileText, name: 'Bons en attente', path: '/dashboard/vendor/orders/pending' },
@@ -151,3 +151,4 @@ const Sidebar = ({ user, closeSidebar }) => {
 };
 
 export default Sidebar;
+
