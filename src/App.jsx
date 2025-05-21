@@ -1,7 +1,7 @@
-
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import React, { lazy, Suspense } from "react";
+import { Toaster } from "./components/ui/toaster";
+import { Toaster as Sonner } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Provider } from "react-redux";
@@ -16,14 +16,85 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 
 // Role-based dashboards
-import AdminDashboard from "./pages/dashboards/AdminDashboard";
-import VendorDashboard from "./pages/dashboards/VendorDashboard";
-import ChefDashboard from "./pages/dashboards/ChefDashboard";
-import PurchaseDashboard from "./pages/dashboards/PurchaseDashboard";
-import StoreDashboard from "./pages/dashboards/StoreDashboard";
-import CashierDashboard from "./pages/dashboards/CashierDashboard";
-import AuditorDashboard from "./pages/dashboards/AuditorDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import VendorDashboard from "./pages/vendor/VendorDashboard";
+import ChefDashboard from "./pages/chef/ChefDashboard";
+import PurchaseDashboard from "./pages/purchase/PurchaseDashboard";
+import StoreDashboard from "./pages/store/StoreDashboard";
+import CashierDashboard from "./pages/cashier/CashierDashboard";
+import AuditorDashboard from "./pages/auditor/AuditorDashboard";
 import NotFound from "./pages/NotFound";
+
+// Lazy loaded pages to improve initial load time
+const Loader = () => <div className="flex items-center justify-center h-full">Chargement...</div>;
+
+// Placeholder component for routes that don't have their components implemented yet
+const PlaceholderComponent = () => <div>Cette fonctionnalité sera bientôt disponible</div>;
+
+// Admin Pages - Import all components
+const UsersList = lazy(() => import("./pages/admin/users/UsersList"));
+const RolesList = lazy(() => import("./pages/admin/users/RolesList"));
+const CategoriesList = lazy(() => import("./pages/admin/products/CategoriesList"));
+const ProductsList = lazy(() => import("./pages/admin/products/ProductsList"));
+const OrdersList = lazy(() => import("./pages/admin/orders/OrdersList"));
+const CreateOrder = lazy(() => import("./pages/admin/orders/CreateOrder"));
+const ImportOrder = lazy(() => import("./pages/admin/orders/ImportOrder"));
+const AllOrders = lazy(() => import("./pages/admin/orders/AllOrders"));
+const PurchasesList = lazy(() => import("./pages/admin/purchases/PurchasesList"));
+const SalesList = lazy(() => import("./pages/admin/sales/SalesList"));
+const GlobalInventory = lazy(() => import("./pages/admin/inventory/GlobalInventory"));
+const ReportsStats = lazy(() => import("./pages/admin/reports/ReportsStats"));
+const SystemSettings = lazy(() => import("./pages/admin/settings/SystemSettings"));
+
+// Vendor Pages
+// Import all existing vendor components
+const VendorCreateOrder = lazy(() => import("./pages/vendor/orders/CreateOrder"));
+const VendorImportOrder = lazy(() => import("./pages/vendor/orders/ImportOrder"));
+const VendorOrders = lazy(() => import("./pages/vendor/orders/MyOrders"));
+const VendorPendingOrders = lazy(() => import("./pages/vendor/orders/PendingOrders"));
+const VendorProducts = lazy(() => import("./pages/vendor/products/ProductsByCategory"));
+const VendorNotifications = lazy(() => import("./pages/vendor/notifications/Notifications"));
+const VendorPOS = lazy(() => import("./pages/vendor/sales/VendorPOS"));
+
+// Chef Pages
+const ValidateOrders = lazy(() => import("./pages/chef/orders/ValidateOrders"));
+const DecisionsHistory = lazy(() => import("./pages/chef/orders/DecisionHistory"));
+const ValidatedOrdersTracking = lazy(() => import("./pages/chef/orders/ApprovedOrdersTracking"));
+const ValidationAlerts = lazy(() => import("./pages/chef/orders/ValidationAlerts"));
+
+// Purchase Pages
+const ValidatedOrdersToProcess = lazy(() => import("./pages/purchase/orders/ValidatedOrdersToProcess"));
+const RecordPurchase = lazy(() => import("./pages/purchase/RecordPurchase"));
+const PurchaseHistory = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+const SuppliersList = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+
+// Store Pages
+// Store Pages
+const ReceiveGoods = lazy(() => import("./pages/store/ReceiveGoods"));
+const ReleaseGoods = lazy(() => import("./pages/store/DispatchStock"));
+const StockStatus = lazy(() => import("./pages/store/inventory/CurrentStock"));
+const StockMovementHistory = lazy(() => import("./pages/store/StockMovementHistory"));
+
+// Cashier Pages
+const POSInterface = lazy(() => import("./pages/cashier/pos/POSInterface"));
+const SalesHistory = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+const CustomersList = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+const PrintReceipt = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+
+// Shared Components
+const SharedPOS = POSInterface; // Using the existing POS interface for both roles
+
+// Auditor Pages
+const ProductBundles = lazy(() => import("./pages/auditor/pricing/ProductBundles"));
+const SalesPricing = lazy(() => import("./pages/auditor/pricing/SalesPricing"));
+const PricingHistory = lazy(() => import("./pages/auditor/pricing/PricingHistory"));
+const BonManagement = lazy(() => import("./pages/auditor/pricing/BonManagement"));
+const MarginAnalysis = lazy(() => import("./pages/auditor/reports/MarginAnalysis"));
+const OperationsAudit = lazy(() => import("./pages/auditor/reports/OperationsAudit"));
+const AllSales = lazy(() => Promise.resolve({ default: PlaceholderComponent }));
+const AllPurchases = lazy(() => Promise.resolve({ default: PlaceholderComponent }));
+const AuditorAllOrders = lazy(() => Promise.resolve({ default: PlaceholderComponent }));
+const AuditReports = lazy(() => Promise.resolve({ default: PlaceholderComponent }));
 
 const queryClient = new QueryClient();
 
@@ -49,24 +120,71 @@ const App = () => (
             <Route path="/dashboard" element={<DashboardLayout />}>
               {/* Admin Routes */}
               <Route path="admin" element={<AdminDashboard />} />
+              <Route path="admin/users" element={<Suspense fallback={<Loader />}><UsersList /></Suspense>} />
+              <Route path="admin/roles" element={<Suspense fallback={<Loader />}><RolesList /></Suspense>} />
+              <Route path="admin/categories" element={<Suspense fallback={<Loader />}><CategoriesList /></Suspense>} />
+              <Route path="admin/products" element={<Suspense fallback={<Loader />}><ProductsList /></Suspense>} />
+              <Route path="admin/orders" element={<Suspense fallback={<Loader />}><OrdersList /></Suspense>} />
+              <Route path="admin/orders/create" element={<Suspense fallback={<Loader />}><CreateOrder /></Suspense>} />
+              <Route path="admin/orders/import" element={<Suspense fallback={<Loader />}><ImportOrder /></Suspense>} />
+              <Route path="admin/orders/all" element={<Suspense fallback={<Loader />}><AllOrders /></Suspense>} />
+              <Route path="admin/purchases" element={<Suspense fallback={<Loader />}><PurchasesList /></Suspense>} />
+              <Route path="admin/sales" element={<Suspense fallback={<Loader />}><SalesList /></Suspense>} />
+              <Route path="admin/inventory" element={<Suspense fallback={<Loader />}><GlobalInventory /></Suspense>} />
+              <Route path="admin/reports" element={<Suspense fallback={<Loader />}><ReportsStats /></Suspense>} />
+              <Route path="admin/settings" element={<Suspense fallback={<Loader />}><SystemSettings /></Suspense>} />
               
               {/* Vendor Routes */}
               <Route path="vendor" element={<VendorDashboard />} />
+              <Route path="vendor/orders/create" element={<Suspense fallback={<Loader />}><VendorCreateOrder /></Suspense>} />
+              <Route path="vendor/orders/import" element={<Suspense fallback={<Loader />}><VendorImportOrder /></Suspense>} />
+              <Route path="vendor/orders" element={<Suspense fallback={<Loader />}><VendorOrders /></Suspense>} />
+              <Route path="vendor/products" element={<Suspense fallback={<Loader />}><VendorProducts /></Suspense>} />
+              <Route path="vendor/orders/pending" element={<Suspense fallback={<Loader />}><VendorPendingOrders /></Suspense>} />
+              <Route path="vendor/notifications" element={<Suspense fallback={<Loader />}><VendorNotifications /></Suspense>} />
+              <Route path="vendor/sales" element={<Suspense fallback={<Loader />}><SharedPOS role="vendor" /></Suspense>} />
               
               {/* Chef Routes */}
               <Route path="chef" element={<ChefDashboard />} />
+              <Route path="chef/orders/validate" element={<Suspense fallback={<Loader />}><ValidateOrders /></Suspense>} />
+              <Route path="chef/orders/history" element={<Suspense fallback={<Loader />}><DecisionsHistory /></Suspense>} />
+              <Route path="chef/orders/tracking" element={<Suspense fallback={<Loader />}><ValidatedOrdersTracking /></Suspense>} />
+              <Route path="chef/alerts" element={<Suspense fallback={<Loader />}><ValidationAlerts /></Suspense>} />
               
               {/* Purchase Routes */}
               <Route path="purchase" element={<PurchaseDashboard />} />
+              <Route path="purchase/orders" element={<Suspense fallback={<Loader />}><ValidatedOrdersToProcess /></Suspense>} />
+              <Route path="purchase/record" element={<Suspense fallback={<Loader />}><RecordPurchase /></Suspense>} />
+              <Route path="purchase/history" element={<Suspense fallback={<Loader />}><PurchaseHistory /></Suspense>} />
+              <Route path="purchase/suppliers" element={<Suspense fallback={<Loader />}><SuppliersList /></Suspense>} />
               
               {/* Store Routes */}
               <Route path="store" element={<StoreDashboard />} />
+              <Route path="store/receive" element={<Suspense fallback={<Loader />}><ReceiveGoods /></Suspense>} />
+              <Route path="store/release" element={<Suspense fallback={<Loader />}><ReleaseGoods /></Suspense>} />
+              <Route path="store/inventory" element={<Suspense fallback={<Loader />}><StockStatus /></Suspense>} />
+              <Route path="store/history" element={<Suspense fallback={<Loader />}><StockMovementHistory /></Suspense>} />
               
               {/* Cashier Routes */}
               <Route path="cashier" element={<CashierDashboard />} />
+              <Route path="cashier/pos" element={<Suspense fallback={<Loader />}><SharedPOS role="cashier" /></Suspense>} />
+              <Route path="cashier/history" element={<Suspense fallback={<Loader />}><SalesHistory /></Suspense>} />
+              <Route path="cashier/customers" element={<Suspense fallback={<Loader />}><CustomersList /></Suspense>} />
+              <Route path="cashier/receipts" element={<Suspense fallback={<Loader />}><PrintReceipt /></Suspense>} />
               
               {/* Auditor Routes */}
               <Route path="auditor" element={<AuditorDashboard />} />
+              <Route path="auditor/product-packs" element={<Suspense fallback={<Loader />}><ProductBundles /></Suspense>} />
+              <Route path="auditor/pricing" element={<Suspense fallback={<Loader />}><SalesPricing /></Suspense>} />
+              <Route path="auditor/pricing/bons" element={<Suspense fallback={<Loader />}><BonManagement /></Suspense>} />
+              <Route path="auditor/price-history" element={<Suspense fallback={<Loader />}><PricingHistory /></Suspense>} />
+              <Route path="auditor/inventory" element={<Suspense fallback={<Loader />}><StockMovementHistory /></Suspense>} />
+              <Route path="auditor/sales" element={<Suspense fallback={<Loader />}><AllSales /></Suspense>} />
+              <Route path="auditor/purchases" element={<Suspense fallback={<Loader />}><AllPurchases /></Suspense>} />
+              <Route path="auditor/orders" element={<Suspense fallback={<Loader />}><AuditorAllOrders /></Suspense>} />
+              <Route path="auditor/reports" element={<Suspense fallback={<Loader />}><AuditReports /></Suspense>} />
+              <Route path="auditor/margins" element={<Suspense fallback={<Loader />}><MarginAnalysis /></Suspense>} />
+              <Route path="auditor/operations-audit" element={<Suspense fallback={<Loader />}><OperationsAudit /></Suspense>} />
             </Route>
             
             {/* 404 Route */}

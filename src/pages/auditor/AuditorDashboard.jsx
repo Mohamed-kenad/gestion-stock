@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import DashboardCard from '../../components/DashboardCard';
 import StatsChart from '../../components/StatsChart';
 import { 
-  Package, DollarSign, LineChart, Receipt, ShoppingCart, FileText, BarChart3
+  Package, DollarSign, LineChart, Receipt, ShoppingCart, FileText, BarChart3, Clipboard
 } from 'lucide-react';
 
 const AuditorDashboard = () => {
@@ -147,6 +147,12 @@ const AuditorDashboard = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Actions rapides</h2>
           <div className="grid grid-cols-1 gap-4">
+            <Link 
+              to="/dashboard/auditor/pricing/bons"
+              className="flex items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-warning-600 hover:bg-warning-700"
+            >
+              <Clipboard className="mr-2 h-5 w-5" /> Gérer les bons
+            </Link>
             <Link 
               to="/dashboard/auditor/pricing"
               className="flex items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"

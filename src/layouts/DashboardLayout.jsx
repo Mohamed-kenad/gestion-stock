@@ -20,7 +20,7 @@ const DashboardLayout = () => {
 
   // If no user, redirect to login
   if (!user) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/auth/login" />;
   }
 
   return (

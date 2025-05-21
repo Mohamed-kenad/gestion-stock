@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
+import {
   LayoutDashboard, Users, Shield, FolderOpen, Package, 
   FileText, FilePlus, FileInput, ShoppingCart, DollarSign, 
   Store, BarChart2, Settings, Bell, CheckSquare, History,
   PackageOpen, AlertTriangle, Receipt, FileStack, Repeat,
-  PieChart, TrendingUp
+  PieChart, TrendingUp, Clipboard, Barcode
 } from 'lucide-react';
 
 const Sidebar = ({ user, closeSidebar }) => {
@@ -35,11 +35,11 @@ const Sidebar = ({ user, closeSidebar }) => {
       case 'vendor':
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/vendor' },
+          { icon: DollarSign, name: 'Interface de vente', path: '/dashboard/vendor/sales' },
           { icon: FilePlus, name: 'Créer un bon de commande', path: '/dashboard/vendor/orders/create' },
           { icon: FileInput, name: 'Importer un bon', path: '/dashboard/vendor/orders/import' },
           { icon: FileText, name: 'Mes bons', path: '/dashboard/vendor/orders' },
           { icon: FolderOpen, name: 'Produits par catégorie', path: '/dashboard/vendor/products' },
-          { icon: FileText, name: 'Bons en attente', path: '/dashboard/vendor/orders/pending' },
           { icon: Bell, name: 'Notifications', path: '/dashboard/vendor/notifications' },
         ];
       case 'chef':
@@ -71,21 +71,14 @@ const Sidebar = ({ user, closeSidebar }) => {
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/cashier' },
           { icon: Receipt, name: 'Interface de vente (POS)', path: '/dashboard/cashier/pos' },
-          { icon: History, name: 'Historique des ventes', path: '/dashboard/cashier/history' },
-          { icon: Users, name: 'Clients (optionnel)', path: '/dashboard/cashier/customers' },
-          { icon: FileText, name: 'Imprimer reçu', path: '/dashboard/cashier/receipts' },
         ];
       case 'auditor':
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/auditor' },
+          { icon: Clipboard, name: 'Gérer les bons', path: '/dashboard/auditor/pricing/bons' },
           { icon: FileStack, name: 'Montages / packs produits', path: '/dashboard/auditor/product-packs' },
-          { icon: DollarSign, name: 'Définir les prix de vente', path: '/dashboard/auditor/pricing' },
           { icon: Repeat, name: 'Historique des prix', path: '/dashboard/auditor/price-history' },
-          { icon: Package, name: 'Stock & mouvements', path: '/dashboard/auditor/inventory' },
-          { icon: DollarSign, name: 'Toutes les ventes', path: '/dashboard/auditor/sales' },
-          { icon: ShoppingCart, name: 'Tous les achats', path: '/dashboard/auditor/purchases' },
-          { icon: FileText, name: 'Tous les bons', path: '/dashboard/auditor/orders' },
-          { icon: PieChart, name: 'Rapports d\'audit', path: '/dashboard/auditor/reports' },
+          { icon: CheckSquare, name: 'Audit des opérations', path: '/dashboard/auditor/operations-audit' },
           { icon: TrendingUp, name: 'Suivi des marges', path: '/dashboard/auditor/margins' },
         ];
       default:
