@@ -97,7 +97,6 @@ const Login = () => {
             - vendor / vendor123<br />
             - chef / chef123<br />
             - purchase / purchase123<br />
-            - store / store123<br />
             - cashier / cashier123<br />
             - auditor / auditor123<br />
             - magasin / magasin123
