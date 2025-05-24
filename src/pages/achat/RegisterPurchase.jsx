@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  ShoppingCart, Search, Plus, Trash2, Save, FileText, Package
+  ShoppingCart, Search, Plus, Trash2, Save, FileText, Package, Truck, AlertCircle
 } from 'lucide-react';
+import { productsAPI, suppliersAPI, purchasesAPI, notificationsAPI, departmentsAPI } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -39,45 +42,28 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Mock data
-const mockSuppliers = [
-  { id: 1, name: 'Fournisseur A', contact: 'contact@fournisseura.com', phone: '+212 661 234 567' },
-  { id: 2, name: 'Fournisseur B', contact: 'contact@fournisseurb.com', phone: '+212 662 345 678' },
-  { id: 3, name: 'Fournisseur C', contact: 'contact@fournisseurc.com', phone: '+212 663 456 789' },
-  { id: 4, name: 'Fournisseur D', contact: 'contact@fournisseurd.com', phone: '+212 664 567 890' },
-  { id: 5, name: 'Fournisseur E', contact: 'contact@fournisseure.com', phone: '+212 665 678 901' },
-];
-
-const mockProducts = [
-  { id: 1, name: 'Tomates', category: 'Légumes', unit: 'kg', price: 3.5 },
-  { id: 2, name: 'Oignons', category: 'Légumes', unit: 'kg', price: 2.8 },
-  { id: 3, name: 'Pommes de terre', category: 'Légumes', unit: 'kg', price: 2.2 },
-  { id: 4, name: 'Carottes', category: 'Légumes', unit: 'kg', price: 2.5 },
-  { id: 5, name: 'Poulet', category: 'Viandes', unit: 'kg', price: 12.5 },
-  { id: 6, name: 'Boeuf', category: 'Viandes', unit: 'kg', price: 18.5 },
-  { id: 7, name: 'Agneau', category: 'Viandes', unit: 'kg', price: 22.0 },
-  { id: 8, name: 'Riz', category: 'Céréales', unit: 'kg', price: 4.5 },
-  { id: 9, name: 'Pâtes', category: 'Céréales', unit: 'kg', price: 3.8 },
-  { id: 10, name: 'Huile d\'olive', category: 'Huiles et graisses', unit: 'L', price: 8.5 },
-  { id: 11, name: 'Lait', category: 'Produits laitiers', unit: 'L', price: 1.2 },
-  { id: 12, name: 'Fromage', category: 'Produits laitiers', unit: 'kg', price: 15.0 },
-];
-
-const mockDepartments = [
-  { id: 1, name: 'Cuisine' },
-  { id: 2, name: 'Pâtisserie' },
-  { id: 3, name: 'Bar' },
-  { id: 4, name: 'Service' },
-  { id: 5, name: 'Entretien' },
-];
+/**
+ * RegisterPurchase Component
+ * 
+ * This component allows the Achat department to record detailed purchase information
+ * including suppliers, quantities, prices, and other important details.
+ */
 
 const RegisterPurchase = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // State for purchase details
   const [purchaseDate, setPurchaseDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [supplier, setSupplier] = useState('');
-  const [department, setDepartment] = useState('');
-  const [reference, setReference] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,11 +73,74 @@ const RegisterPurchase = () => {
   const [unitPrice, setUnitPrice] = useState(0);
   const [expiryDate, setExpiryDate] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
-
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
+  const [paymentStatus, setPaymentStatus] = useState('pending');
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(
+    format(addDays(new Date(), 7), 'yyyy-MM-dd')
+  );
+  
+  // Fetch suppliers using React Query
+  const {
+    data: suppliers = [],
+    isLoading: suppliersLoading
+  } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => suppliersAPI.getAll()
+  });
+  
+  // Fetch departments using React Query
+  const {
+    data: departments = [],
+    isLoading: departmentsLoading
+  } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => departmentsAPI.getAll()
+  });
+  
+  // Fetch products using React Query
+  const {
+    data: products = [],
+    isLoading: productsLoading
+  } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productsAPI.getAll()
+  });
+  
+  // Create purchase mutation
+  const createPurchaseMutation = useMutation({
+    mutationFn: (purchaseData) => purchasesAPI.create(purchaseData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      toast({
+        title: "Achat enregistré",
+        description: "L'achat a été enregistré avec succès.",
+      });
+      resetForm();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: `Erreur lors de l'enregistrement: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Send notification mutation
+  const sendNotificationMutation = useMutation({
+    mutationFn: (notificationData) => notificationsAPI.create(notificationData),
+    onSuccess: () => {
+      console.log('Notification sent successfully');
+    },
+    onError: (error) => {
+      console.error('Error sending notification:', error);
+    }
+  });
+  
   // Filter products based on search term
-  const filteredProducts = mockProducts.filter(product => 
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = products.filter(product => 
+    product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Calculate total
@@ -103,7 +152,7 @@ const RegisterPurchase = () => {
   const openProductDialog = (product = null) => {
     if (product) {
       setSelectedProduct(product);
-      setUnitPrice(product.price);
+      setUnitPrice(product.price || 0);
     } else {
       setSelectedProduct(null);
       setUnitPrice(0);
@@ -116,7 +165,14 @@ const RegisterPurchase = () => {
 
   // Add product to purchase
   const addProductToPurchase = () => {
-    if (!selectedProduct || quantity <= 0 || unitPrice <= 0) return;
+    if (!selectedProduct || quantity <= 0 || unitPrice <= 0) {
+      toast({
+        title: "Validation échouée",
+        description: "Veuillez vérifier les informations du produit.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const newItem = {
       id: Date.now(),
@@ -133,42 +189,102 @@ const RegisterPurchase = () => {
 
     setItems([...items, newItem]);
     setIsProductDialogOpen(false);
+    
+    toast({
+      title: "Produit ajouté",
+      description: `${selectedProduct.name} ajouté à l'achat.`,
+    });
   };
 
   // Remove item from purchase
   const removeItem = (itemId) => {
     setItems(items.filter(item => item.id !== itemId));
+    
+    toast({
+      title: "Produit retiré",
+      description: "Le produit a été retiré de l'achat.",
+    });
+  };
+  
+  // Reset form after submission
+  const resetForm = () => {
+    setSupplierId('');
+    setDepartmentId('');
+    setInvoiceNumber('');
+    setNotes('');
+    setItems([]);
+    setPaymentMethod('bank_transfer');
+    setPaymentStatus('pending');
+    setPurchaseDate(format(new Date(), 'yyyy-MM-dd'));
+    setExpectedDeliveryDate(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
   };
 
   // Handle save purchase
-  const handleSavePurchase = () => {
-    if (!supplier || !department || items.length === 0) {
-      alert('Veuillez remplir tous les champs obligatoires et ajouter au moins un produit.');
+  const handleSavePurchase = async () => {
+    if (!supplierId || !departmentId || items.length === 0) {
+      toast({
+        title: "Validation échouée",
+        description: "Veuillez remplir tous les champs obligatoires et ajouter au moins un produit.",
+        variant: "destructive",
+      });
       return;
     }
 
-    const purchase = {
-      date: purchaseDate,
-      supplier,
-      department,
-      reference,
-      notes,
-      items,
-      total: calculateTotal(),
-      createdAt: new Date().toISOString(),
-      createdBy: 'Nadia Tazi', // Would come from auth context in a real app
-    };
-
-    // In a real app, this would be an API call
-    console.log('Purchase saved:', purchase);
-    alert('Achat enregistré avec succès!');
-    
-    // Reset form
-    setSupplier('');
-    setDepartment('');
-    setReference('');
-    setNotes('');
-    setItems([]);
+    try {
+      const selectedSupplier = suppliers.find(s => s.id === supplierId);
+      const selectedDepartment = departments.find(d => d.id === departmentId);
+      
+      // Prepare purchase data
+      const purchaseData = {
+        purchaseDate: purchaseDate,
+        supplierId: supplierId,
+        supplierName: selectedSupplier?.name || 'Unknown Supplier',
+        departmentId: departmentId,
+        departmentName: selectedDepartment?.name || 'Unknown Department',
+        invoiceNumber: invoiceNumber,
+        notes: notes,
+        items: items.map(item => ({
+          ...item,
+          productId: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.quantity * item.unitPrice,
+          expiryDate: item.expiryDate,
+          batchNumber: item.batchNumber
+        })),
+        totalAmount: calculateTotal(),
+        paymentMethod: paymentMethod,
+        paymentStatus: paymentStatus,
+        expectedDeliveryDate: expectedDeliveryDate,
+        createdAt: new Date().toISOString(),
+        createdBy: 'Achat Mohamed', // Would come from auth context in a real app
+        status: 'completed'
+      };
+      
+      // 1. Create the purchase record
+      const createdPurchase = await createPurchaseMutation.mutateAsync(purchaseData);
+      
+      // 2. Send notification to Magasin about incoming goods
+      await sendNotificationMutation.mutateAsync({
+        title: 'Nouvelle commande à réceptionner',
+        message: `Une commande de ${items.length} produits a été effectuée auprès de ${selectedSupplier?.name} et sera livrée le ${expectedDeliveryDate}. Veuillez préparer la réception.`,
+        type: 'incoming_delivery',
+        recipientId: '4', // Magasin role ID
+        purchaseId: createdPurchase.id,
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        priority: 'high'
+      });
+      
+    } catch (error) {
+      console.error('Error saving purchase:', error);
+      toast({
+        title: "Erreur",
+        description: `Une erreur est survenue: ${error.message}`,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -203,45 +319,96 @@ const RegisterPurchase = () => {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="supplier">Fournisseur</Label>
-              <Select value={supplier} onValueChange={setSupplier}>
+              <Label htmlFor="supplier">Fournisseur <span className="text-red-500">*</span></Label>
+              <Select value={supplierId} onValueChange={setSupplierId}>
                 <SelectTrigger id="supplier">
                   <SelectValue placeholder="Sélectionner un fournisseur" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockSuppliers.map(supplier => (
-                    <SelectItem key={supplier.id} value={supplier.name}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
+                  {suppliersLoading ? (
+                    <SelectItem value="loading" disabled>Chargement des fournisseurs...</SelectItem>
+                  ) : suppliers.length === 0 ? (
+                    <SelectItem value="none" disabled>Aucun fournisseur disponible</SelectItem>
+                  ) : (
+                    suppliers.map(supplier => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="department">Département</Label>
-              <Select value={department} onValueChange={setDepartment}>
+              <Label htmlFor="department">Département <span className="text-red-500">*</span></Label>
+              <Select value={departmentId} onValueChange={setDepartmentId}>
                 <SelectTrigger id="department">
                   <SelectValue placeholder="Sélectionner un département" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockDepartments.map(dept => (
-                    <SelectItem key={dept.id} value={dept.name}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
+                  {departmentsLoading ? (
+                    <SelectItem value="loading" disabled>Chargement des départements...</SelectItem>
+                  ) : departments.length === 0 ? (
+                    <SelectItem value="none" disabled>Aucun département disponible</SelectItem>
+                  ) : (
+                    departments.map(dept => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="reference">Référence (Facture/Bon de livraison)</Label>
+              <Label htmlFor="invoiceNumber">Numéro de facture <span className="text-red-500">*</span></Label>
               <Input
-                id="reference"
-                placeholder="Entrez la référence du document"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
+                id="invoiceNumber"
+                placeholder="Entrez le numéro de facture"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="expectedDeliveryDate">Date de livraison prévue <span className="text-red-500">*</span></Label>
+              <Input
+                id="expectedDeliveryDate"
+                type="date"
+                value={expectedDeliveryDate}
+                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="paymentMethod">Méthode de paiement</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger id="paymentMethod">
+                  <SelectValue placeholder="Sélectionner une méthode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Espèces</SelectItem>
+                  <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
+                  <SelectItem value="check">Chèque</SelectItem>
+                  <SelectItem value="credit_card">Carte de crédit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="paymentStatus">Statut du paiement</Label>
+              <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                <SelectTrigger id="paymentStatus">
+                  <SelectValue placeholder="Sélectionner un statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="paid">Payé</SelectItem>
+                  <SelectItem value="partial">Paiement partiel</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">

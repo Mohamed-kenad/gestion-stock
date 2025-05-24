@@ -203,7 +203,7 @@ const ValidatedOrdersToProcess = () => {
         return <Badge className="bg-yellow-500">Moyen</Badge>;
       case 'normal':
       default:
-        return <Badge className="bg-blue-500">Normal</Badge>;
+        return <Badge className="bg-gray-500">Normal</Badge>;
     }
   };
 

@@ -7,9 +7,9 @@ const initialUsers = [
   { id: 2, username: 'vendor', password: 'vendor123', role: 'vendor', name: 'Vendor User' },
   { id: 3, username: 'chef', password: 'chef123', role: 'chef', name: 'Chef User' },
   { id: 4, username: 'purchase', password: 'purchase123', role: 'purchase', name: 'Purchase Agent' },
-  { id: 5, username: 'store', password: 'store123', role: 'store', name: 'Store Manager' },
-  { id: 6, username: 'cashier', password: 'cashier123', role: 'cashier', name: 'Cashier' },
-  { id: 7, username: 'auditor', password: 'auditor123', role: 'auditor', name: 'Auditor' },
+  { id: 5, username: 'cashier', password: 'cashier123', role: 'cashier', name: 'Cashier' },
+  { id: 6, username: 'auditor', password: 'auditor123', role: 'auditor', name: 'Auditor' },
+  { id: 7, username: 'magasin', password: 'magasin123', role: 'magasin', name: 'Warehouse Manager' },
 ];
 
 // Get user data from localStorage if available

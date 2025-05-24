@@ -346,13 +346,13 @@ const VendorPOS = () => {
   return (
     <div className="p-6 h-full">
       {/* Header with time and vendor info */}
-      <div className="flex justify-between items-center p-3 mb-4 bg-blue-50 rounded-md">
+      <div className="flex justify-between items-center p-3 mb-4 bg-gray-50 rounded-md">
         <div className="flex items-center">
-          <Clock className="h-5 w-5 mr-2 text-blue-500" />
+          <Clock className="h-5 w-5 mr-2 text-gray-500" />
           <span>{new Date().toLocaleTimeString()}</span>
         </div>
         <div className="flex items-center">
-          <Badge variant="outline" className="bg-blue-100 text-blue-700">
+          <Badge variant="outline" className="bg-gray-100 text-gray-700">
             Interface Vente Vendeur
           </Badge>
         </div>

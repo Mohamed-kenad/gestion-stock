@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ordersAPI } from '../../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, Plus, FileText, Eye, Clock, CheckCircle2, 
-  XCircle, AlertTriangle, Calendar, Download, Printer
+  XCircle, AlertTriangle, Calendar, Download, Printer, Edit, Loader2
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
@@ -43,138 +45,97 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 
-// Mock data for orders
-const mockOrders = [
-  {
-    id: 'BC-2025-001',
-    title: 'Commande hebdomadaire cuisine',
-    department: 'Cuisine',
-    createdAt: '2025-05-15',
-    status: 'pending',
-    urgency: 'normal',
-    items: [
-      { product: 'Poulet', category: 'Viandes', quantity: 10, unit: 'kg', price: 45.00 },
-      { product: 'Tomates', category: 'Légumes', quantity: 5, unit: 'kg', price: 8.00 },
-      { product: 'Oignons', category: 'Légumes', quantity: 3, unit: 'kg', price: 6.00 },
-    ],
-    total: 503.00,
-    createdBy: 'John Doe',
-    comments: [],
-  },
-  {
-    id: 'BC-2025-002',
-    title: 'Commande mensuelle épices',
-    department: 'Cuisine',
-    createdAt: '2025-05-10',
-    status: 'approved',
-    urgency: 'low',
-    items: [
-      { product: 'Sel', category: 'Épices', quantity: 2, unit: 'kg', price: 3.00 },
-      { product: 'Poivre', category: 'Épices', quantity: 1, unit: 'kg', price: 50.00 },
-      { product: 'Cumin', category: 'Épices', quantity: 0.5, unit: 'kg', price: 60.00 },
-    ],
-    total: 86.00,
-    createdBy: 'John Doe',
-    approvedBy: 'Chef Pierre',
-    approvedAt: '2025-05-11',
-    comments: [
-      { author: 'Chef Pierre', date: '2025-05-11', text: 'Bon validé, quantités correctes.' }
-    ],
-  },
-  {
-    id: 'BC-2025-003',
-    title: 'Commande urgente boissons',
-    department: 'Bar',
-    createdAt: '2025-05-18',
-    status: 'rejected',
-    urgency: 'high',
-    items: [
-      { product: 'Eau minérale', category: 'Boissons', quantity: 20, unit: 'L', price: 5.00 },
-      { product: 'Jus d\'orange', category: 'Boissons', quantity: 10, unit: 'L', price: 10.00 },
-    ],
-    total: 200.00,
-    createdBy: 'John Doe',
-    rejectedBy: 'Chef Pierre',
-    rejectedAt: '2025-05-19',
-    comments: [
-      { author: 'Chef Pierre', date: '2025-05-19', text: 'Stock suffisant, commande non nécessaire pour le moment.' }
-    ],
-  },
-  {
-    id: 'BC-2025-004',
-    title: 'Commande produits laitiers',
-    department: 'Pâtisserie',
-    createdAt: '2025-05-14',
-    status: 'delivered',
-    urgency: 'normal',
-    items: [
-      { product: 'Lait', category: 'Produits laitiers', quantity: 20, unit: 'L', price: 7.00 },
-      { product: 'Fromage', category: 'Produits laitiers', quantity: 5, unit: 'kg', price: 80.00 },
-      { product: 'Beurre', category: 'Produits laitiers', quantity: 3, unit: 'kg', price: 60.00 },
-    ],
-    total: 720.00,
-    createdBy: 'John Doe',
-    approvedBy: 'Chef Pierre',
-    approvedAt: '2025-05-15',
-    deliveredAt: '2025-05-17',
-    comments: [
-      { author: 'Chef Pierre', date: '2025-05-15', text: 'Bon validé.' },
-      { author: 'Service Achat', date: '2025-05-17', text: 'Livraison effectuée.' }
-    ],
-  },
-  {
-    id: 'BC-2025-005',
-    title: 'Commande fruits',
-    department: 'Cuisine',
-    createdAt: '2025-05-16',
-    status: 'processing',
-    urgency: 'normal',
-    items: [
-      { product: 'Pommes', category: 'Fruits', quantity: 10, unit: 'kg', price: 15.00 },
-      { product: 'Bananes', category: 'Fruits', quantity: 8, unit: 'kg', price: 12.00 },
-      { product: 'Oranges', category: 'Fruits', quantity: 12, unit: 'kg', price: 10.00 },
-    ],
-    total: 366.00,
-    createdBy: 'John Doe',
-    approvedBy: 'Chef Pierre',
-    approvedAt: '2025-05-17',
-    comments: [
-      { author: 'Chef Pierre', date: '2025-05-17', text: 'Bon validé.' },
-      { author: 'Service Achat', date: '2025-05-18', text: 'Commande en cours de traitement.' }
-    ],
-  },
-];
-
 const MyOrders = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   
-  const [orders, setOrders] = useState([]);
+  // Mock user ID - in a real app, this would come from authentication context
+  const userId = 2; // Using the vendor user ID from db.json
+  
+  // State for filters and pagination
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setOrders(mockOrders);
-    }, 500);
-  }, []);
+  // We'll define pagination after we have filteredOrders
   
-  // Filter orders based on search and filters
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      order.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesDepartment = departmentFilter === 'all' || order.department === departmentFilter;
-    
-    return matchesSearch && matchesStatus && matchesDepartment;
+  // Download order mutation
+  const downloadOrderMutation = useMutation({
+    mutationFn: (orderId) => ordersAPI.download(orderId),
+    onSuccess: (data) => {
+      // Handle download success
+      toast({
+        title: "Téléchargement réussi",
+        description: "Le bon de commande a été téléchargé avec succès."
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: `Erreur lors du téléchargement: ${error.message}`,
+        variant: "destructive"
+      });
+    }
   });
   
+  // Fetch orders using React Query
+  const { 
+    data: orders = [], 
+    isLoading: ordersLoading,
+    error: ordersError
+  } = useQuery({
+    queryKey: ['orders'],
+    queryFn: ordersAPI.getAll,
+    // Prevent error from being thrown to the console
+    onError: () => {
+      // Silent error handling - the API will return mock data
+    },
+    // Don't retry failed requests
+    retry: false
+  });
+  
+  // Filter orders created by this vendor
+  const myOrders = orders.filter(order => {
+    // Check for numeric userId match
+    const userIdMatch = order.userId === userId;
+    
+    // Check for string createdBy match ("Vendor User")
+    const createdByMatch = order.createdBy === "Vendor User";
+    
+    // Check for vendorId match if it exists
+    const vendorIdMatch = order.vendorId === userId;
+    
+    return userIdMatch || createdByMatch || vendorIdMatch;
+  });
+  
+  // Filter orders based on search, status, date, and department
+  const filteredOrders = myOrders.filter(order => {
+    const matchesSearch = 
+      (order.id && order.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (order.title && order.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const matchesDate = dateFilter === '' || order.createdAt === dateFilter || order.date === dateFilter;
+    const matchesDepartment = departmentFilter === 'all' || order.department === departmentFilter;
+    
+    return matchesSearch && matchesStatus && matchesDate && matchesDepartment;
+  });
+  
+  // Pagination
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  
   // Get unique departments for filter
-  const departments = [...new Set(orders.map(order => order.department))];
+  const departments = [...new Set(myOrders.map(order => order.department).filter(Boolean))];
   
   // Handle view order details
   const handleViewOrder = (order) => {
@@ -184,18 +145,18 @@ const MyOrders = () => {
   
   // Handle print order
   const handlePrintOrder = (orderId) => {
+    // Logic to print order - would typically open a print dialog with formatted content
+    window.print();
     toast({
-      title: "Impression en cours",
-      description: `Impression du bon de commande ${orderId}`,
+      title: "Impression",
+      description: `Impression du bon de commande #${orderId}`,
     });
   };
   
   // Handle download order
   const handleDownloadOrder = (orderId) => {
-    toast({
-      title: "Téléchargement en cours",
-      description: `Téléchargement du bon de commande ${orderId}`,
-    });
+    // Use the mutation to download the order
+    downloadOrderMutation.mutate(orderId);
   };
   
   // Get status badge
@@ -273,6 +234,19 @@ const MyOrders = () => {
                 <SelectItem value="rejected">Rejeté</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Toutes les dates</SelectItem>
+                {orders.map((order) => (
+                  <SelectItem key={order.id} value={order.createdAt || order.date}>
+                    {order.createdAt || order.date}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Département" />
@@ -299,58 +273,95 @@ const MyOrders = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium">Aucun bon de commande trouvé</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aucun bon de commande ne correspond à vos critères de recherche
-              </p>
-              <Button className="mt-4" onClick={() => navigate('/dashboard/vendor/orders/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Créer un bon de commande
-              </Button>
-            </div>
-          ) : (
+          <div className="border rounded-md">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Référence</TableHead>
                   <TableHead>Titre</TableHead>
-                  <TableHead>Département</TableHead>
-                  <TableHead>Date de création</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead>Urgence</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{order.title}</TableCell>
-                    <TableCell>{order.department}</TableCell>
-                    <TableCell>{order.createdAt}</TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>{getUrgencyBadge(order.urgency)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleViewOrder(order)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handlePrintOrder(order.id)}>
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDownloadOrder(order.id)}>
-                          <Download className="h-4 w-4" />
-                        </Button>
+                {ordersLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      <div className="flex flex-col items-center justify-center text-gray-500">
+                        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-2"></div>
+                        <p>Chargement des bons de commande...</p>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : ordersError ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      <div className="flex flex-col items-center justify-center text-red-500">
+                        <AlertTriangle className="h-12 w-12 mb-2" />
+                        <p>Erreur lors du chargement des bons de commande</p>
+                        <p className="text-sm">{ordersError.message}</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      <div className="flex flex-col items-center justify-center text-gray-500">
+                        <FileText className="h-12 w-12 mb-2" />
+                        <p>Aucun bon de commande trouvé</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredOrders.map(order => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell>{order.title || 'Bon de commande'}</TableCell>
+                      <TableCell>{order.createdAt || order.date}</TableCell>
+                      <TableCell>
+                        <Badge className={`
+                          ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' : ''}
+                          ${order.status === 'approved' ? 'bg-green-100 text-green-800 hover:bg-green-100' : ''}
+                          ${order.status === 'rejected' ? 'bg-red-100 text-red-800 hover:bg-red-100' : ''}
+                          ${order.status === 'purchased' || order.status === 'received' ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : ''}
+                        `}>
+                          {order.status === 'pending' ? 'En attente' : 
+                           order.status === 'approved' ? 'Approuvé' : 
+                           order.status === 'rejected' ? 'Rejeté' : 
+                           order.status === 'received' ? 'Reçu' : 'Acheté'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{(order.total || 0).toFixed(2)} DH</TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleViewOrder(order)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Détails
+                          </Button>
+                          {order.status === 'pending' && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/vendor/orders/edit/${order.id}`)}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Modifier
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )} 
               </TableBody>
             </Table>
-          )}
+          </div>
         </CardContent>
       </Card>
       
@@ -434,7 +445,7 @@ const MyOrders = () => {
                   
                   <div className="col-span-2">
                     <h4 className="text-sm font-medium text-muted-foreground">Montant total</h4>
-                    <p className="text-xl font-bold">{selectedOrder.total.toFixed(2)} DH</p>
+                    <p className="text-xl font-bold">{(selectedOrder.total || 0).toFixed(2)} DH</p>
                   </div>
                 </div>
               </TabsContent>
@@ -451,27 +462,27 @@ const MyOrders = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedOrder.items.map((item, index) => (
+                    {(selectedOrder.items || []).map((item, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">{item.product}</TableCell>
                         <TableCell>{item.category}</TableCell>
                         <TableCell className="text-center">
                           {item.quantity} {item.unit}
                         </TableCell>
-                        <TableCell className="text-right">{item.price.toFixed(2)} DH</TableCell>
-                        <TableCell className="text-right">{(item.price * item.quantity).toFixed(2)} DH</TableCell>
+                        <TableCell className="text-right">{(item.price || 0).toFixed(2)} DH</TableCell>
+                        <TableCell className="text-right">{((item.price || 0) * (item.quantity || 0)).toFixed(2)} DH</TableCell>
                       </TableRow>
                     ))}
                     <TableRow>
                       <TableCell colSpan={4} className="text-right font-bold">Total</TableCell>
-                      <TableCell className="text-right font-bold">{selectedOrder.total.toFixed(2)} DH</TableCell>
+                      <TableCell className="text-right font-bold">{(selectedOrder.total || 0).toFixed(2)} DH</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TabsContent>
               
               <TabsContent value="history" className="pt-4">
-                {selectedOrder.comments.length === 0 ? (
+                {(!selectedOrder.comments || selectedOrder.comments.length === 0) ? (
                   <div className="text-center py-8">
                     <Clock className="h-12 w-12 mx-auto text-muted-foreground" />
                     <h3 className="mt-4 text-lg font-medium">Aucun commentaire</h3>
@@ -481,7 +492,7 @@ const MyOrders = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {selectedOrder.comments.map((comment, index) => (
+                    {(selectedOrder.comments || []).map((comment, index) => (
                       <div key={index} className="border rounded-lg p-4">
                         <div className="flex justify-between items-center mb-2">
                           <div className="font-medium">{comment.author}</div>

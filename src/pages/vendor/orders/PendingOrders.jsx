@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ordersAPI } from '../../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, Clock, Eye, AlertTriangle, Calendar, 
-  User, Building, FileText, Download, Printer, CheckCircle2, XCircle
+  User, Building, FileText, Download, Printer, CheckCircle2, XCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from "../../../components/ui/button";
 import {
@@ -43,132 +46,132 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui
 import { ScrollArea } from "../../../components/ui/scroll-area";
 import { useToast } from "../../../components/ui/use-toast";
 import { Progress } from "../../../components/ui/progress";
-
-// Mock data for pending orders
-const mockPendingOrders = [
-  {
-    id: 'BC-2025-001',
-    title: 'Commande hebdomadaire cuisine',
-    department: 'Cuisine',
-    createdAt: '2025-05-15',
-    status: 'pending',
-    urgency: 'normal',
-    waitingTime: 2, // days
-    items: [
-      { product: 'Poulet', category: 'Viandes', quantity: 10, unit: 'kg', price: 45.00 },
-      { product: 'Tomates', category: 'Légumes', quantity: 5, unit: 'kg', price: 8.00 },
-      { product: 'Oignons', category: 'Légumes', quantity: 3, unit: 'kg', price: 6.00 },
-    ],
-    total: 503.00,
-    createdBy: 'John Doe',
-    comments: [],
-    progress: 0,
-  },
-  {
-    id: 'BC-2025-006',
-    title: 'Commande produits secs',
-    department: 'Cuisine',
-    createdAt: '2025-05-17',
-    status: 'pending',
-    urgency: 'low',
-    waitingTime: 1, // days
-    items: [
-      { product: 'Farine', category: 'Céréales', quantity: 20, unit: 'kg', price: 10.00 },
-      { product: 'Sucre', category: 'Épicerie', quantity: 15, unit: 'kg', price: 12.00 },
-      { product: 'Sel', category: 'Épices', quantity: 5, unit: 'kg', price: 3.00 },
-    ],
-    total: 395.00,
-    createdBy: 'John Doe',
-    comments: [],
-    progress: 0,
-  },
-  {
-    id: 'BC-2025-008',
-    title: 'Commande urgente bar',
-    department: 'Bar',
-    createdAt: '2025-05-19',
-    status: 'pending',
-    urgency: 'high',
-    waitingTime: 0, // days
-    items: [
-      { product: 'Jus d\'orange', category: 'Boissons', quantity: 15, unit: 'L', price: 10.00 },
-      { product: 'Eau minérale', category: 'Boissons', quantity: 30, unit: 'L', price: 5.00 },
-      { product: 'Sirop de grenadine', category: 'Boissons', quantity: 5, unit: 'L', price: 20.00 },
-    ],
-    total: 400.00,
-    createdBy: 'Jane Smith',
-    comments: [],
-    progress: 0,
-  },
-  {
-    id: 'BC-2025-009',
-    title: 'Commande fruits et légumes',
-    department: 'Cuisine',
-    createdAt: '2025-05-18',
-    status: 'in_review',
-    urgency: 'normal',
-    waitingTime: 1, // days
-    items: [
-      { product: 'Pommes', category: 'Fruits', quantity: 10, unit: 'kg', price: 15.00 },
-      { product: 'Bananes', category: 'Fruits', quantity: 8, unit: 'kg', price: 12.00 },
-      { product: 'Carottes', category: 'Légumes', quantity: 7, unit: 'kg', price: 7.00 },
-      { product: 'Courgettes', category: 'Légumes', quantity: 5, unit: 'kg', price: 9.00 },
-    ],
-    total: 343.00,
-    createdBy: 'John Doe',
-    comments: [],
-    progress: 50,
-  },
-  {
-    id: 'BC-2025-010',
-    title: 'Commande produits laitiers',
-    department: 'Pâtisserie',
-    createdAt: '2025-05-18',
-    status: 'in_review',
-    urgency: 'normal',
-    waitingTime: 1, // days
-    items: [
-      { product: 'Lait', category: 'Produits laitiers', quantity: 20, unit: 'L', price: 7.00 },
-      { product: 'Beurre', category: 'Produits laitiers', quantity: 10, unit: 'kg', price: 60.00 },
-      { product: 'Crème fraîche', category: 'Produits laitiers', quantity: 5, unit: 'L', price: 30.00 },
-    ],
-    total: 890.00,
-    createdBy: 'Jane Smith',
-    comments: [],
-    progress: 75,
-  },
-];
+import { Skeleton } from "../../../components/ui/skeleton";
 
 const PendingOrders = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
-  const [orders, setOrders] = useState([]);
+  // Mock user ID - in a real app, this would come from authentication context
+  const userId = 1; // Assuming vendor has ID 1
+  
+  // State for filters and pagination
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setOrders(mockPendingOrders);
-    }, 500);
-  }, []);
-  
-  // Filter orders based on search and filters
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      order.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDepartment = departmentFilter === 'all' || order.department === departmentFilter;
-    const matchesUrgency = urgencyFilter === 'all' || order.urgency === urgencyFilter;
-    
-    return matchesSearch && matchesDepartment && matchesUrgency;
+  // Fetch orders using React Query
+  const { 
+    data: orders = [], 
+    isLoading: ordersLoading,
+    error: ordersError
+  } = useQuery({
+    queryKey: ['orders'],
+    queryFn: ordersAPI.getAll,
+    // Prevent error from being thrown to the console
+    onError: () => {
+      // Silent error handling - the API will return mock data
+    },
+    // Don't retry failed requests
+    retry: false
   });
   
-  // Get unique departments for filter
-  const departments = [...new Set(orders.map(order => order.department))];
+  // Download order mutation
+  const downloadMutation = useMutation({
+    mutationFn: ordersAPI.download,
+    onSuccess: () => {
+      toast({
+        title: "Téléchargement réussi",
+        description: "Le bon de commande a été téléchargé avec succès.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur de téléchargement",
+        description: error.message || "Une erreur s'est produite lors du téléchargement.",
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Filter orders by pending status and created by this vendor
+  const pendingOrders = orders.filter(order => 
+    (order.status === 'pending' || order.status === 'in_review') && 
+    (order.createdBy === userId || order.vendorId === userId)
+  );
+  
+  // Apply additional filters
+  const filteredOrders = pendingOrders.filter(order => {
+    const matchesSearch = order.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         order.id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDepartment = departmentFilter === 'all' || order.department === departmentFilter;
+    const matchesUrgency = urgencyFilter === 'all' || order.urgency === urgencyFilter;
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    
+    return matchesSearch && matchesDepartment && matchesUrgency && matchesStatus;
+  });
+  
+  // Sort orders by urgency and date
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    // First sort by urgency (high > normal > low)
+    const urgencyOrder = { high: 0, normal: 1, low: 2 };
+    const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+    if (urgencyDiff !== 0) return urgencyDiff;
+    
+    // Then sort by date (oldest first)
+    return new Date(a.createdAt) - new Date(b.createdAt);
+  });
+  
+  // Calculate waiting time progress (0-100)
+  const calculateWaitingProgress = (days) => {
+    if (days <= 0) return 0;
+    if (days >= 7) return 100;
+    return Math.round((days / 7) * 100);
+  };
+  
+  // Calculate waiting days from date
+  const calculateWaitingDays = (dateString) => {
+    const orderDate = new Date(dateString);
+    const today = new Date();
+    const diffTime = today - orderDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+  
+  // Get urgency badge
+  const getUrgencyBadge = (urgency) => {
+    switch (urgency) {
+      case 'high':
+        return <Badge variant="destructive">Urgent</Badge>;
+      case 'normal':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Normal</Badge>;
+      case 'low':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Faible</Badge>;
+      default:
+        return <Badge variant="outline">Inconnu</Badge>;
+    }
+  };
+  
+  // Get departments from orders
+  const departments = [...new Set(pendingOrders.map(order => order.department))];
+  
+  // Get urgency levels
+  const urgencyLevels = ['low', 'normal', 'high'];
+  
+  // Pagination
+  const ordersPerPage = 10;
+  const indexOfLastOrder = currentPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = sortedOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+  const totalPages = Math.ceil(sortedOrders.length / ordersPerPage);
+  
+  // Change page
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
   
   // Handle view order details
   const handleViewOrder = (order) => {
@@ -178,93 +181,82 @@ const PendingOrders = () => {
   
   // Handle print order
   const handlePrintOrder = (orderId) => {
+    // In a real app, this would trigger a print dialog
     toast({
       title: "Impression en cours",
-      description: `Impression du bon de commande ${orderId}`,
+      description: `Le bon de commande ${orderId} est en cours d'impression.`,
     });
   };
   
   // Handle download order
   const handleDownloadOrder = (orderId) => {
-    // Find the order by ID
-    const order = orders.find(o => o.id === orderId);
-    
-    if (!order) {
-      toast({
-        title: "Erreur",
-        description: `Bon de commande ${orderId} introuvable`,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Create CSV content from the order items
-    const header = "Référence,Produit,Catégorie,Quantité,Unité\n";
-    const csvContent = header + order.items.map(item => 
-      `${order.id},${item.product},${item.category},${item.quantity},${item.unit}`
-    ).join("\n");
-    
-    // Create a Blob with the CSV content
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    
-    // Create a download link and trigger the download
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `bon_commande_${orderId}.csv`);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Téléchargement terminé",
-      description: `Le bon de commande ${orderId} a été téléchargé`,
-    });
+    downloadMutation.mutate(orderId);
   };
   
-  // Get urgency badge
-  const getUrgencyBadge = (urgency) => {
-    switch (urgency) {
-      case 'low':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Basse</Badge>;
-      case 'normal':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Normale</Badge>;
-      case 'high':
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Haute</Badge>;
-      case 'critical':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Critique</Badge>;
-      default:
-        return <Badge variant="outline">Inconnue</Badge>;
-    }
-  };
+  // Loading and error states
+  if (ordersLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Bons de commande en attente</h1>
+          <Button onClick={() => navigate('/dashboard/vendor/orders/create')}>
+            Créer un bon de commande
+          </Button>
+        </div>
+        <div className="space-y-4">
+          {Array(5).fill(0).map((_, index) => (
+            <Card key={index} className="w-full">
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-1/3" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
   
-  // Get status badge
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">En attente</Badge>;
-      case 'in_review':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">En cours de validation</Badge>;
-      default:
-        return <Badge variant="outline">Inconnu</Badge>;
-    }
-  };
+  if (ordersError) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Bons de commande en attente</h1>
+          <Button onClick={() => navigate('/dashboard/vendor/orders/create')}>
+            Créer un bon de commande
+          </Button>
+        </div>
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <AlertTriangle className="h-10 w-10 text-red-500 mb-4" />
+            <h3 className="text-xl font-medium">Erreur lors du chargement des bons de commande</h3>
+            <p className="text-muted-foreground mt-2">
+              {ordersError.message || "Une erreur s'est produite lors du chargement des données."}
+            </p>
+            <Button 
+              variant="outline" 
+              className="mt-4" 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['orders'] })}
+            >
+              Réessayer
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Bons en attente</h1>
-          <p className="text-muted-foreground">
-            Consultez l'état de vos bons de commande en attente de validation
-          </p>
-        </div>
-        <Button onClick={() => navigate('/dashboard/vendor/orders')}>
-          <FileText className="h-4 w-4 mr-2" />
-          Tous mes bons
+        <h1 className="text-2xl font-bold">Bons de commande en attente</h1>
+        <Button onClick={() => navigate('/dashboard/vendor/orders/create')}>
+          Créer un bon de commande
         </Button>
       </div>
       
@@ -281,6 +273,16 @@ const PendingOrders = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="pending">En attente</SelectItem>
+                <SelectItem value="in_review">En cours de validation</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Département" />
@@ -332,53 +334,87 @@ const PendingOrders = () => {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Référence</TableHead>
-                  <TableHead>Titre</TableHead>
-                  <TableHead>Département</TableHead>
-                  <TableHead>Date de création</TableHead>
-                  <TableHead>Urgence</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{order.title}</TableCell>
-                    <TableCell>{order.department}</TableCell>
-                    <TableCell>{order.createdAt}</TableCell>
-                    <TableCell>{getUrgencyBadge(order.urgency)}</TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {getStatusBadge(order.status)}
-                        {order.status === 'in_review' && (
-                          <div className="w-full mt-1">
-                            <Progress value={order.progress} className="h-2" />
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleViewOrder(order)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handlePrintOrder(order.id)}>
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDownloadOrder(order.id)}>
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Référence</TableHead>
+                    <TableHead>Titre</TableHead>
+                    <TableHead>Département</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Urgence</TableHead>
+                    <TableHead>Attente</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {ordersLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10">
+                        <div className="flex flex-col items-center justify-center text-gray-500">
+                          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-2"></div>
+                          <p>Chargement des bons de commande...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : ordersError ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10">
+                        <div className="flex flex-col items-center justify-center text-red-500">
+                          <AlertTriangle className="h-12 w-12 mb-2" />
+                          <p>Erreur lors du chargement des bons de commande</p>
+                          <p className="text-sm">{ordersError.message}</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10">
+                        <div className="flex flex-col items-center justify-center text-gray-500">
+                          <FileText className="h-12 w-12 mb-2" />
+                          <p>Aucun bon de commande en attente</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-medium">{order.id}</TableCell>
+                        <TableCell>{order.title || 'Bon de commande'}</TableCell>
+                        <TableCell>{order.department}</TableCell>
+                        <TableCell>{order.createdAt || order.date}</TableCell>
+                        <TableCell>{getUrgencyBadge(order.urgency || 'normal')}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Progress 
+                              value={getWaitingProgress(order.waitingTime || calculateWaitingDays(order.createdAt || order.date))} 
+                              className="h-2 w-24 mr-2" 
+                            />
+                            <span className="text-sm">
+                              {order.waitingTime || calculateWaitingDays(order.createdAt || order.date)} 
+                              jour{(order.waitingTime || calculateWaitingDays(order.createdAt || order.date)) > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleViewOrder(order)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handlePrintOrder(order.id)}>
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDownloadOrder(order.id)}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

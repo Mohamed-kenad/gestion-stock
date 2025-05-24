@@ -320,7 +320,7 @@ const OperationsAudit = () => {
       case 'adjustment':
         return <ArrowUpDown className="h-4 w-4 text-yellow-500" />;
       case 'transfer':
-        return <ArrowUpDown className="h-4 w-4 text-blue-500" />;
+        return <ArrowUpDown className="h-4 w-4 text-gray-500" />;
       default:
         return <Info className="h-4 w-4" />;
     }
@@ -488,7 +488,7 @@ const OperationsAudit = () => {
                               <Button 
                                 variant="outline" 
                                 size="icon"
-                                className={operation.audited ? "text-yellow-500" : "text-blue-500"}
+                                className={operation.audited ? "text-yellow-500" : "text-gray-500"}
                                 onClick={() => handleAudit(operation)}
                               >
                                 {operation.audited ? (

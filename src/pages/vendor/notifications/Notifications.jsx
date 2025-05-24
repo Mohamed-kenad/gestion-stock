@@ -208,7 +208,7 @@ const Notifications = () => {
       case 'order_rejected':
         return <XCircle className="h-5 w-5 text-red-500" />;
       case 'order_delivered':
-        return <Package className="h-5 w-5 text-blue-500" />;
+        return <Package className="h-5 w-5 text-gray-500" />;
       case 'order_processing':
         return <Clock className="h-5 w-5 text-purple-500" />;
       case 'low_stock':

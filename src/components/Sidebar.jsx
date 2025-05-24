@@ -5,7 +5,7 @@ import {
   FileText, FilePlus, FileInput, ShoppingCart, DollarSign, 
   Store, BarChart2, Settings, Bell, CheckSquare, History,
   PackageOpen, AlertTriangle, Receipt, FileStack, Repeat,
-  PieChart, TrendingUp, Clipboard, Barcode
+  PieChart, TrendingUp, Clipboard, Barcode, Calendar
 } from 'lucide-react';
 
 const Sidebar = ({ user, closeSidebar }) => {
@@ -53,20 +53,12 @@ const Sidebar = ({ user, closeSidebar }) => {
       case 'purchase':
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/purchase' },
-          { icon: FileText, name: 'Bons validés à traiter', path: '/dashboard/purchase/orders' },
+          { icon: CheckSquare, name: 'Bons approuvés à traiter', path: '/dashboard/purchase/orders/approved' },
           { icon: FileText, name: 'Enregistrer un achat', path: '/dashboard/purchase/record' },
           { icon: History, name: 'Historique des achats', path: '/dashboard/purchase/history' },
           { icon: Users, name: 'Fournisseurs', path: '/dashboard/purchase/suppliers' },
         ];
-      case 'store':
-        return [
-          { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/store' },
-          { icon: FileInput, name: 'Réception des marchandises', path: '/dashboard/store/receive' },
-          { icon: FileText, name: 'Sortie de stock', path: '/dashboard/store/dispatch' },
-          { icon: Package, name: 'Stock actuel', path: '/dashboard/store/inventory' },
-          { icon: AlertTriangle, name: 'Produits en seuil critique', path: '/dashboard/store/alerts' },
-          { icon: History, name: 'Historique des mouvements', path: '/dashboard/store/history' },
-        ];
+      // 'store' role removed as 'magasin' provides the same functionality
       case 'cashier':
         return [
           { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/cashier' },
@@ -80,6 +72,16 @@ const Sidebar = ({ user, closeSidebar }) => {
           { icon: Repeat, name: 'Historique des prix', path: '/dashboard/auditor/price-history' },
           { icon: CheckSquare, name: 'Audit des opérations', path: '/dashboard/auditor/operations-audit' },
           { icon: TrendingUp, name: 'Suivi des marges', path: '/dashboard/auditor/margins' },
+        ];
+      case 'magasin':
+        return [
+          { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/magasin' },
+          { icon: Package, name: 'Gestion de Stock', path: '/dashboard/magasin/inventory' },
+          { icon: AlertTriangle, name: 'Alertes de Stock', path: '/dashboard/magasin/inventory/alerts' },
+          { icon: History, name: 'Historique Ajustements', path: '/dashboard/magasin/inventory/adjustments' },
+          { icon: FileInput, name: 'Réceptions', path: '/dashboard/magasin/reception' },
+          { icon: Calendar, name: 'Calendrier Réceptions', path: '/dashboard/magasin/reception/calendar' },
+          { icon: BarChart2, name: 'Rapports de Stock', path: '/dashboard/magasin/reports' },
         ];
       default:
         return [];

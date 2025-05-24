@@ -20,9 +20,9 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import VendorDashboard from "./pages/vendor/VendorDashboard";
 import ChefDashboard from "./pages/chef/ChefDashboard";
 import PurchaseDashboard from "./pages/purchase/PurchaseDashboard";
-import StoreDashboard from "./pages/store/StoreDashboard";
 import CashierDashboard from "./pages/cashier/CashierDashboard";
 import AuditorDashboard from "./pages/auditor/AuditorDashboard";
+import MagasinDashboard from "./pages/magasin/Dashboard";
 import NotFound from "./pages/NotFound";
 
 // Lazy loaded pages to improve initial load time
@@ -64,16 +64,12 @@ const ValidationAlerts = lazy(() => import("./pages/chef/orders/ValidationAlerts
 
 // Purchase Pages
 const ValidatedOrdersToProcess = lazy(() => import("./pages/purchase/orders/ValidatedOrdersToProcess"));
+const ApprovedOrders = lazy(() => import("./pages/achat/orders/ApprovedOrders"));
 const RecordPurchase = lazy(() => import("./pages/purchase/RecordPurchase"));
 const PurchaseHistory = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
 const SuppliersList = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
 
-// Store Pages
-// Store Pages
-const ReceiveGoods = lazy(() => import("./pages/store/ReceiveGoods"));
-const ReleaseGoods = lazy(() => import("./pages/store/DispatchStock"));
-const StockStatus = lazy(() => import("./pages/store/inventory/CurrentStock"));
-const StockMovementHistory = lazy(() => import("./pages/store/StockMovementHistory"));
+// Store Pages removed as 'magasin' provides the same functionality
 
 // Cashier Pages
 const POSInterface = lazy(() => import("./pages/cashier/pos/POSInterface"));
@@ -96,6 +92,15 @@ const AllPurchases = lazy(() => Promise.resolve({ default: PlaceholderComponent 
 const AuditorAllOrders = lazy(() => Promise.resolve({ default: PlaceholderComponent }));
 const AuditReports = lazy(() => Promise.resolve({ default: PlaceholderComponent }));
 
+// Magasin (Warehouse Manager) Pages
+const InventoryManager = lazy(() => import("./pages/magasin/inventory/InventoryManager"));
+const StockAlerts = lazy(() => import("./pages/magasin/inventory/StockAlerts"));
+const AdjustmentHistory = lazy(() => import("./pages/magasin/inventory/AdjustmentHistory"));
+const ReceptionList = lazy(() => import("./pages/magasin/reception/ReceptionList"));
+const ReceptionCalendar = lazy(() => import("./pages/magasin/reception/ReceptionCalendar"));
+const ReceptionManager = lazy(() => import("./pages/magasin/reception/ReceptionManager"));
+const StockMovementReport = lazy(() => import("./pages/magasin/reports/StockMovementReport"));
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -108,6 +113,15 @@ const App = () => (
           <Routes>
             {/* Redirect root to login page */}
             <Route path="/" element={<Navigate to="/auth/login" replace />} />
+            
+            {/* Redirect /magasin routes to /dashboard/magasin routes */}
+            <Route path="/magasin" element={<Navigate to="/dashboard/magasin" replace />} />
+            <Route path="/magasin/inventory" element={<Navigate to="/dashboard/magasin/inventory" replace />} />
+            <Route path="/magasin/inventory/alerts" element={<Navigate to="/dashboard/magasin/inventory/alerts" replace />} />
+            <Route path="/magasin/inventory/adjustments" element={<Navigate to="/dashboard/magasin/inventory/adjustments" replace />} />
+            <Route path="/magasin/reception" element={<Navigate to="/dashboard/magasin/reception" replace />} />
+            <Route path="/magasin/reception/calendar" element={<Navigate to="/dashboard/magasin/reception/calendar" replace />} />
+            <Route path="/magasin/reports" element={<Navigate to="/dashboard/magasin/reports" replace />} />
             
             {/* Auth Routes */}
             <Route path="/auth" element={<AuthLayout />}>
@@ -153,17 +167,13 @@ const App = () => (
               
               {/* Purchase Routes */}
               <Route path="purchase" element={<PurchaseDashboard />} />
-              <Route path="purchase/orders" element={<Suspense fallback={<Loader />}><ValidatedOrdersToProcess /></Suspense>} />
+              <Route path="purchase/orders/approved" element={<Suspense fallback={<Loader />}><ApprovedOrders /></Suspense>} />
+              <Route path="purchase/orders" element={<Navigate to="/dashboard/purchase/orders/approved" replace />} />
               <Route path="purchase/record" element={<Suspense fallback={<Loader />}><RecordPurchase /></Suspense>} />
               <Route path="purchase/history" element={<Suspense fallback={<Loader />}><PurchaseHistory /></Suspense>} />
               <Route path="purchase/suppliers" element={<Suspense fallback={<Loader />}><SuppliersList /></Suspense>} />
               
-              {/* Store Routes */}
-              <Route path="store" element={<StoreDashboard />} />
-              <Route path="store/receive" element={<Suspense fallback={<Loader />}><ReceiveGoods /></Suspense>} />
-              <Route path="store/release" element={<Suspense fallback={<Loader />}><ReleaseGoods /></Suspense>} />
-              <Route path="store/inventory" element={<Suspense fallback={<Loader />}><StockStatus /></Suspense>} />
-              <Route path="store/history" element={<Suspense fallback={<Loader />}><StockMovementHistory /></Suspense>} />
+              {/* Store Routes removed as 'magasin' provides the same functionality */}
               
               {/* Cashier Routes */}
               <Route path="cashier" element={<CashierDashboard />} />
@@ -178,13 +188,23 @@ const App = () => (
               <Route path="auditor/pricing" element={<Suspense fallback={<Loader />}><SalesPricing /></Suspense>} />
               <Route path="auditor/pricing/bons" element={<Suspense fallback={<Loader />}><BonManagement /></Suspense>} />
               <Route path="auditor/price-history" element={<Suspense fallback={<Loader />}><PricingHistory /></Suspense>} />
-              <Route path="auditor/inventory" element={<Suspense fallback={<Loader />}><StockMovementHistory /></Suspense>} />
+              <Route path="auditor/inventory" element={<Suspense fallback={<Loader />}><PlaceholderComponent /></Suspense>} />
               <Route path="auditor/sales" element={<Suspense fallback={<Loader />}><AllSales /></Suspense>} />
               <Route path="auditor/purchases" element={<Suspense fallback={<Loader />}><AllPurchases /></Suspense>} />
               <Route path="auditor/orders" element={<Suspense fallback={<Loader />}><AuditorAllOrders /></Suspense>} />
               <Route path="auditor/reports" element={<Suspense fallback={<Loader />}><AuditReports /></Suspense>} />
               <Route path="auditor/margins" element={<Suspense fallback={<Loader />}><MarginAnalysis /></Suspense>} />
               <Route path="auditor/operations-audit" element={<Suspense fallback={<Loader />}><OperationsAudit /></Suspense>} />
+              
+              {/* Magasin (Warehouse Manager) Routes */}
+              <Route path="magasin" element={<MagasinDashboard />} />
+              <Route path="magasin/inventory" element={<Suspense fallback={<Loader />}><InventoryManager /></Suspense>} />
+              <Route path="magasin/inventory/alerts" element={<Suspense fallback={<Loader />}><StockAlerts /></Suspense>} />
+              <Route path="magasin/inventory/adjustments" element={<Suspense fallback={<Loader />}><AdjustmentHistory /></Suspense>} />
+              <Route path="magasin/reception" element={<Suspense fallback={<Loader />}><ReceptionList /></Suspense>} />
+              <Route path="magasin/reception/calendar" element={<Suspense fallback={<Loader />}><ReceptionCalendar /></Suspense>} />
+              <Route path="magasin/reception/:orderId" element={<Suspense fallback={<Loader />}><ReceptionManager /></Suspense>} />
+              <Route path="magasin/reports" element={<Suspense fallback={<Loader />}><StockMovementReport /></Suspense>} />
             </Route>
             
             {/* 404 Route */}

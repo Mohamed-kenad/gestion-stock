@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { productsAPI, categoriesAPI } from '../../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, Package, ShoppingCart, Plus, 
-  Info, BarChart2, ArrowRight, ChevronRight, ChevronDown
+  Info, BarChart2, ArrowRight, ChevronRight, ChevronDown,
+  AlertTriangle, Loader2
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
@@ -22,14 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -40,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,104 +43,77 @@ import {
 } from "@/components/ui/collapsible";
 import { useToast } from "@/components/ui/use-toast";
 
-// Mock data for categories
-const mockCategories = [
-  { id: 1, name: 'Viandes', icon: '🥩', count: 8 },
-  { id: 2, name: 'Légumes', icon: '🥬', count: 12 },
-  { id: 3, name: 'Fruits', icon: '🍎', count: 10 },
-  { id: 4, name: 'Produits laitiers', icon: '🧀', count: 6 },
-  { id: 5, name: 'Boissons', icon: '🥤', count: 9 },
-  { id: 6, name: 'Céréales', icon: '🌾', count: 5 },
-  { id: 7, name: 'Épices', icon: '🌶️', count: 15 },
-  { id: 8, name: 'Conserves', icon: '🥫', count: 7 },
-];
-
-// Mock data for products
-const mockProducts = [
-  // Viandes
-  { id: 1, name: 'Poulet entier', category: 'Viandes', unit: 'kg', price: 45.00, stock: 25, threshold: 10, status: 'normal' },
-  { id: 2, name: 'Boeuf haché', category: 'Viandes', unit: 'kg', price: 120.00, stock: 15, threshold: 8, status: 'normal' },
-  { id: 3, name: 'Escalope de dinde', category: 'Viandes', unit: 'kg', price: 90.00, stock: 12, threshold: 10, status: 'normal' },
-  { id: 4, name: 'Agneau', category: 'Viandes', unit: 'kg', price: 130.00, stock: 8, threshold: 5, status: 'normal' },
-  { id: 5, name: 'Côtelettes de porc', category: 'Viandes', unit: 'kg', price: 85.00, stock: 10, threshold: 8, status: 'normal' },
-  { id: 6, name: 'Foie de veau', category: 'Viandes', unit: 'kg', price: 95.00, stock: 5, threshold: 5, status: 'warning' },
-  { id: 7, name: 'Lapin entier', category: 'Viandes', unit: 'kg', price: 75.00, stock: 3, threshold: 5, status: 'warning' },
-  { id: 8, name: 'Cailles', category: 'Viandes', unit: 'unité', price: 25.00, stock: 20, threshold: 15, status: 'normal' },
-  
-  // Légumes
-  { id: 9, name: 'Tomates', category: 'Légumes', unit: 'kg', price: 8.00, stock: 50, threshold: 20, status: 'normal' },
-  { id: 10, name: 'Pommes de terre', category: 'Légumes', unit: 'kg', price: 5.00, stock: 100, threshold: 30, status: 'normal' },
-  { id: 11, name: 'Oignons', category: 'Légumes', unit: 'kg', price: 6.00, stock: 40, threshold: 20, status: 'normal' },
-  { id: 12, name: 'Carottes', category: 'Légumes', unit: 'kg', price: 7.00, stock: 35, threshold: 15, status: 'normal' },
-  { id: 13, name: 'Courgettes', category: 'Légumes', unit: 'kg', price: 9.00, stock: 25, threshold: 15, status: 'normal' },
-  { id: 14, name: 'Aubergines', category: 'Légumes', unit: 'kg', price: 12.00, stock: 18, threshold: 10, status: 'normal' },
-  { id: 15, name: 'Poivrons', category: 'Légumes', unit: 'kg', price: 15.00, stock: 20, threshold: 10, status: 'normal' },
-  { id: 16, name: 'Concombres', category: 'Légumes', unit: 'kg', price: 8.00, stock: 30, threshold: 15, status: 'normal' },
-  { id: 17, name: 'Champignons', category: 'Légumes', unit: 'kg', price: 25.00, stock: 8, threshold: 10, status: 'warning' },
-  { id: 18, name: 'Ail', category: 'Légumes', unit: 'kg', price: 30.00, stock: 5, threshold: 5, status: 'warning' },
-  { id: 19, name: 'Chou-fleur', category: 'Légumes', unit: 'unité', price: 15.00, stock: 12, threshold: 8, status: 'normal' },
-  { id: 20, name: 'Brocoli', category: 'Légumes', unit: 'kg', price: 18.00, stock: 10, threshold: 8, status: 'normal' },
-  
-  // Fruits
-  { id: 21, name: 'Pommes', category: 'Fruits', unit: 'kg', price: 15.00, stock: 40, threshold: 20, status: 'normal' },
-  { id: 22, name: 'Bananes', category: 'Fruits', unit: 'kg', price: 12.00, stock: 35, threshold: 20, status: 'normal' },
-  { id: 23, name: 'Oranges', category: 'Fruits', unit: 'kg', price: 10.00, stock: 45, threshold: 20, status: 'normal' },
-  { id: 24, name: 'Citrons', category: 'Fruits', unit: 'kg', price: 14.00, stock: 25, threshold: 15, status: 'normal' },
-  { id: 25, name: 'Fraises', category: 'Fruits', unit: 'kg', price: 35.00, stock: 12, threshold: 10, status: 'normal' },
-  { id: 26, name: 'Raisins', category: 'Fruits', unit: 'kg', price: 25.00, stock: 15, threshold: 10, status: 'normal' },
-  { id: 27, name: 'Ananas', category: 'Fruits', unit: 'unité', price: 20.00, stock: 8, threshold: 5, status: 'normal' },
-  { id: 28, name: 'Mangues', category: 'Fruits', unit: 'kg', price: 40.00, stock: 6, threshold: 5, status: 'normal' },
-  { id: 29, name: 'Poires', category: 'Fruits', unit: 'kg', price: 18.00, stock: 20, threshold: 15, status: 'normal' },
-  { id: 30, name: 'Kiwis', category: 'Fruits', unit: 'kg', price: 30.00, stock: 10, threshold: 8, status: 'normal' },
-];
-
 const ProductsByCategory = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  // State for filters and UI
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [stockFilter, setStockFilter] = useState('all');
+  const [expandedCategories, setExpandedCategories] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
-  const [openCategories, setOpenCategories] = useState({});
+  const [stockFilter, setStockFilter] = useState('all');
   
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setProducts(mockProducts);
-      setCategories(mockCategories);
-      
-      // Initialize all categories as open
-      const initialOpenState = {};
-      mockCategories.forEach(category => {
-        initialOpenState[category.id] = true;
-      });
-      setOpenCategories(initialOpenState);
-    }, 500);
-  }, []);
+  // Fetch categories using React Query
+  const { 
+    data: categories = [], 
+    isLoading: categoriesLoading,
+    error: categoriesError
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: categoriesAPI.getAll,
+    // Prevent error from being thrown to the console
+    onError: () => {
+      // Silent error handling - the API will return mock data
+    },
+    // Don't retry failed requests
+    retry: false
+  });
   
-  // Filter products based on search, category, and stock
+  // Fetch products using React Query
+  const { 
+    data: products = [], 
+    isLoading: productsLoading,
+    error: productsError
+  } = useQuery({
+    queryKey: ['products'],
+    queryFn: productsAPI.getAll,
+    // Prevent error from being thrown to the console
+    onError: () => {
+      // Silent error handling - the API will return mock data
+    },
+    // Don't retry failed requests
+    retry: false
+  });
+  
+  // Loading state
+  const isLoading = categoriesLoading || productsLoading;
+  const hasError = categoriesError || productsError;
+  
+  // Filter products based on search term and stock filter
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    const matchesStock = stockFilter === 'all' || 
-      (stockFilter === 'low' && product.stock <= product.threshold) ||
-      (stockFilter === 'normal' && product.stock > product.threshold);
+    const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    return matchesSearch && matchesCategory && matchesStock;
+    const matchesStock = 
+      stockFilter === 'all' || 
+      (stockFilter === 'low' && product.quantity <= (product.threshold || 10)) ||
+      (stockFilter === 'normal' && product.quantity > (product.threshold || 10));
+    
+    return matchesSearch && matchesStock;
   });
   
   // Group products by category
-  const productsByCategory = {};
-  filteredProducts.forEach(product => {
-    if (!productsByCategory[product.category]) {
-      productsByCategory[product.category] = [];
-    }
-    productsByCategory[product.category].push(product);
-  });
+  const productsByCategory = categories.map(category => {
+    const categoryProducts = filteredProducts.filter(product => 
+      product.categoryId === category.id || product.category === category.name
+    );
+    
+    return {
+      ...category,
+      count: categoryProducts.length,
+      products: categoryProducts
+    };
+  }).filter(category => category.count > 0);
   
   // Handle view product details
   const handleViewProduct = (product) => {
@@ -155,34 +123,25 @@ const ProductsByCategory = () => {
   
   // Handle add to order
   const handleAddToOrder = (productId) => {
-    toast({
-      title: "Produit ajouté",
-      description: "Le produit a été ajouté au bon de commande.",
-    });
+    // Navigate to create order page with product pre-selected
+    navigate(`/dashboard/vendor/orders/create?product=${productId}`);
     
-    // Navigate to create order page
-    navigate('/dashboard/vendor/orders/create');
-  };
-  
-  // Toggle category collapse
-  const toggleCategory = (categoryId) => {
-    setOpenCategories({
-      ...openCategories,
-      [categoryId]: !openCategories[categoryId]
+    toast({
+      title: "Produit sélectionné",
+      description: "Vous pouvez maintenant créer un bon de commande avec ce produit.",
     });
   };
   
   // Get stock status badge
-  const getStockStatusBadge = (status) => {
-    switch (status) {
-      case 'normal':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Stock normal</Badge>;
-      case 'warning':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Stock bas</Badge>;
-      case 'critical':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Stock critique</Badge>;
-      default:
-        return <Badge variant="outline">Inconnu</Badge>;
+  const getStockStatusBadge = (product) => {
+    if (!product.quantity && product.quantity !== 0) return <Badge variant="outline">Inconnu</Badge>;
+    
+    const isLow = product.quantity <= (product.threshold || 10);
+    
+    if (isLow) {
+      return <Badge variant="destructive">Stock bas</Badge>;
+    } else {
+      return <Badge variant="outline">Normal</Badge>;
     }
   };
   
@@ -190,49 +149,41 @@ const ProductsByCategory = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Produits par catégorie</h1>
-          <p className="text-muted-foreground">
-            Consultez les produits disponibles par catégorie
-          </p>
+          <h1 className="text-2xl font-bold">Produits par catégorie</h1>
+          <p className="text-muted-foreground">Consultez les produits disponibles par catégorie</p>
         </div>
         <Button onClick={() => navigate('/dashboard/vendor/orders/create')}>
-          <ShoppingCart className="h-4 w-4 mr-2" />
+          <ShoppingCart className="mr-2 h-4 w-4" />
           Créer un bon de commande
         </Button>
       </div>
       
       {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher un produit..."
-                className="pl-8"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+        <CardHeader className="pb-3">
+          <CardTitle>Filtres</CardTitle>
+          <CardDescription>Filtrez les produits par nom ou statut de stock</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Rechercher un produit..."
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Catégorie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les catégories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.name}>
-                    {category.icon} {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={stockFilter} onValueChange={setStockFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Niveau de stock" />
+                <SelectValue placeholder="Statut du stock" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les niveaux</SelectItem>
+                <SelectItem value="all">Tous les produits</SelectItem>
                 <SelectItem value="low">Stock bas</SelectItem>
                 <SelectItem value="normal">Stock normal</SelectItem>
               </SelectContent>
@@ -242,90 +193,119 @@ const ProductsByCategory = () => {
       </Card>
       
       {/* Products by Category */}
-      <div className="space-y-6">
-        {Object.keys(productsByCategory).length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <Package className="h-12 w-12 mx-auto text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium">Aucun produit trouvé</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Aucun produit ne correspond à vos critères de recherche
-              </p>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {isLoading ? (
+          // Loading skeleton
+          Array(6).fill(0).map((_, index) => (
+            <Card key={index} className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <Skeleton className="h-6 w-24" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : hasError ? (
+          <div className="col-span-3 flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+            <h3 className="text-xl font-medium">Erreur lors du chargement des produits</h3>
+            <p className="text-muted-foreground mt-2">
+              {categoriesError?.message || productsError?.message || "Une erreur s'est produite"}
+            </p>
+          </div>
+        ) : productsByCategory.length === 0 ? (
+          <div className="col-span-3 flex flex-col items-center justify-center py-12">
+            <Package className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-xl font-medium">Aucun produit trouvé</h3>
+            <p className="text-muted-foreground mt-2">Aucun produit ne correspond à votre recherche</p>
+          </div>
         ) : (
-          Object.entries(productsByCategory).map(([category, categoryProducts]) => {
-            const categoryInfo = categories.find(c => c.name === category);
-            return (
-              <Card key={category}>
-                <Collapsible
-                  open={openCategories[categoryInfo?.id] || false}
-                  onOpenChange={() => toggleCategory(categoryInfo?.id)}
-                >
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="flex flex-row items-center justify-between p-4 cursor-pointer">
-                      <div className="flex items-center">
-                        <span className="text-2xl mr-2">{categoryInfo?.icon}</span>
-                        <div>
-                          <CardTitle>{category}</CardTitle>
-                          <CardDescription>{categoryProducts.length} produits</CardDescription>
-                        </div>
-                      </div>
-                      {openCategories[categoryInfo?.id] ? (
-                        <ChevronDown className="h-5 w-5" />
+          productsByCategory.map((category) => (
+            <Card key={category.id} className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <Collapsible open={expandedCategories.includes(category.id)} onOpenChange={(open) => {
+                  setExpandedCategories(open 
+                    ? [...expandedCategories, category.id]
+                    : expandedCategories.filter(id => id !== category.id)
+                  );
+                }}>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center">
+                      <span className="mr-2">{category.icon || '📦'}</span>
+                      {category.name}
+                    </CardTitle>
+                    <Badge variant="outline">{category.count} produits</Badge>
+                  </div>
+                  <CardDescription className="mt-1.5">
+                    Produits disponibles dans cette catégorie
+                  </CardDescription>
+                  
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full mt-2 flex justify-between items-center">
+                      <span>Voir les produits</span>
+                      {expandedCategories.includes(category.id) ? (
+                        <ChevronDown className="h-4 w-4" />
                       ) : (
-                        <ChevronRight className="h-5 w-5" />
+                        <ChevronRight className="h-4 w-4" />
                       )}
-                    </CardHeader>
+                    </Button>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Produit</TableHead>
-                            <TableHead>Unité</TableHead>
-                            <TableHead className="text-right">Prix</TableHead>
-                            <TableHead className="text-right">Stock</TableHead>
-                            <TableHead>Statut</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {categoryProducts.map((product) => (
-                            <TableRow key={product.id}>
-                              <TableCell className="font-medium">{product.name}</TableCell>
-                              <TableCell>{product.unit}</TableCell>
-                              <TableCell className="text-right">{product.price.toFixed(2)} DH</TableCell>
-                              <TableCell className="text-right">{product.stock} {product.unit}</TableCell>
-                              <TableCell>{getStockStatusBadge(product.status)}</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end space-x-2">
-                                  <Button variant="ghost" size="icon" onClick={() => handleViewProduct(product)}>
-                                    <Info className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleAddToOrder(product.id)}>
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
+                  
+                  <CollapsibleContent className="mt-2">
+                    <ScrollArea className="h-[200px]">
+                      <div className="space-y-2">
+                        {category.products.length === 0 ? (
+                          <div className="text-center py-4 text-muted-foreground">
+                            Aucun produit dans cette catégorie
+                          </div>
+                        ) : (
+                          category.products.map((product) => (
+                            <div 
+                              key={product.id} 
+                              className="p-2 rounded-md hover:bg-muted flex justify-between items-center cursor-pointer"
+                              onClick={() => handleViewProduct(product)}
+                            >
+                              <div>
+                                <div className="font-medium">{product.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Stock: {product.quantity || 0} {product.unit || 'unité'}
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{(product.price || 0).toFixed(2)} DH</div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddToOrder(product.id);
+                                  }}
+                                >
+                                  <ShoppingCart className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
                   </CollapsibleContent>
                 </Collapsible>
-              </Card>
-            );
-          })
+              </CardHeader>
+            </Card>
+          ))
         )}
       </div>
       
       {/* Product Details Dialog */}
       {selectedProduct && (
         <Dialog open={showProductDetails} onOpenChange={setShowProductDetails}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Détails du produit</DialogTitle>
               <DialogDescription>
@@ -333,61 +313,42 @@ const ProductsByCategory = () => {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Nom</h4>
-                <p className="text-base">{selectedProduct.name}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Catégorie</h4>
-                <p className="text-base">{selectedProduct.category}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Unité</h4>
-                <p className="text-base">{selectedProduct.unit}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Prix</h4>
-                <p className="text-base">{selectedProduct.price.toFixed(2)} DH</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Stock actuel</h4>
-                <p className="text-base">{selectedProduct.stock} {selectedProduct.unit}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">Seuil d'alerte</h4>
-                <p className="text-base">{selectedProduct.threshold} {selectedProduct.unit}</p>
-              </div>
-              <div className="col-span-2">
-                <h4 className="text-sm font-medium text-muted-foreground">Statut du stock</h4>
-                <div className="mt-1">{getStockStatusBadge(selectedProduct.status)}</div>
-              </div>
-              
-              {/* Stock history chart would go here in a real app */}
-              <div className="col-span-2 border rounded-lg p-4 mt-2">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium">Historique du stock</h4>
-                  <Button variant="ghost" size="sm">
-                    <BarChart2 className="h-4 w-4 mr-2" />
-                    Voir détails
-                  </Button>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Nom</h4>
+                  <p className="text-base">{selectedProduct.name}</p>
                 </div>
-                <div className="h-32 flex items-center justify-center text-muted-foreground">
-                  Graphique d'historique du stock (simulé)
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Catégorie</h4>
+                  <p className="text-base">{selectedProduct.category}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Prix</h4>
+                  <p className="text-base">{(selectedProduct.price || 0).toFixed(2)} DH</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Unité</h4>
+                  <p className="text-base">{selectedProduct.unit || 'unité'}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Stock actuel</h4>
+                  <p className="text-base">{selectedProduct.quantity || 0} {selectedProduct.unit || 'unité'}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Statut du stock</h4>
+                  <div className="mt-1">{getStockStatusBadge(selectedProduct)}</div>
                 </div>
               </div>
             </div>
             
-            <DialogFooter className="flex justify-between">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setShowProductDetails(false)}>
                 Fermer
               </Button>
-              <Button onClick={() => {
-                handleAddToOrder(selectedProduct.id);
-                setShowProductDetails(false);
-              }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter au bon
+              <Button onClick={() => handleAddToOrder(selectedProduct.id)}>
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Commander
               </Button>
             </DialogFooter>
           </DialogContent>

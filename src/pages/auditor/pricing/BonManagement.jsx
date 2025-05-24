@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { bonsAPI } from '../../../lib/api';
 import { useToast } from '../../../hooks/use-toast';
 import { 
   Card, 
@@ -37,164 +38,10 @@ import { Badge } from '../../../components/ui/badge';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Package, Search, CheckCircle, AlertCircle, Tag, Layers } from 'lucide-react';
 
-// Mock data for bons (purchase receipts/orders)
-const mockBons = [
-  {
-    id: 'BON-001',
-    date: '2025-05-18',
-    supplier: 'Fournisseur A',
-    warehouseRef: 'WH-123',
-    status: 'pending_review',
-    totalItems: 12,
-    products: [
-      {
-        id: 'P001',
-        name: 'Tomate',
-        category: 'Légumes',
-        quantity: 20,
-        unit: 'kg',
-        purchasePrice: 2.50,
-        currentSellingPrice: 4.25,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      },
-      {
-        id: 'P002',
-        name: 'Pomme de terre',
-        category: 'Légumes',
-        quantity: 50,
-        unit: 'kg',
-        purchasePrice: 1.20,
-        currentSellingPrice: 2.50,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      },
-      {
-        id: 'P003',
-        name: 'Poulet entier',
-        category: 'Viandes',
-        quantity: 10,
-        unit: 'pièce',
-        purchasePrice: 8.50,
-        currentSellingPrice: 12.99,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      }
-    ]
-  },
-  {
-    id: 'BON-002',
-    date: '2025-05-19',
-    supplier: 'Fournisseur B',
-    warehouseRef: 'WH-124',
-    status: 'pending_review',
-    totalItems: 8,
-    products: [
-      {
-        id: 'P004',
-        name: 'Riz Basmati',
-        category: 'Céréales',
-        quantity: 25,
-        unit: 'kg',
-        purchasePrice: 3.20,
-        currentSellingPrice: 5.99,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      },
-      {
-        id: 'P005',
-        name: 'Huile d\'olive',
-        category: 'Huiles',
-        quantity: 15,
-        unit: 'L',
-        purchasePrice: 7.50,
-        currentSellingPrice: 12.50,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      }
-    ]
-  },
-  {
-    id: 'BON-003',
-    date: '2025-05-20',
-    supplier: 'Fournisseur C',
-    warehouseRef: 'WH-125',
-    status: 'pending_review',
-    totalItems: 15,
-    products: [
-      {
-        id: 'P006',
-        name: 'Yaourt nature',
-        category: 'Produits laitiers',
-        quantity: 40,
-        unit: 'pack',
-        purchasePrice: 2.80,
-        currentSellingPrice: 4.50,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      },
-      {
-        id: 'P007',
-        name: 'Fromage',
-        category: 'Produits laitiers',
-        quantity: 20,
-        unit: 'kg',
-        purchasePrice: 9.20,
-        currentSellingPrice: 15.99,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      },
-      {
-        id: 'P008',
-        name: 'Lait',
-        category: 'Produits laitiers',
-        quantity: 30,
-        unit: 'L',
-        purchasePrice: 1.10,
-        currentSellingPrice: 1.99,
-        sellingPrice: null,
-        bundle: false,
-        bundleInfo: null,
-        promotion: false,
-        promotionInfo: null,
-        readyForSale: false
-      }
-    ]
-  }
-];
+
 
 const BonManagement = () => {
   const { toast } = useToast();
-  const [bons, setBons] = useState([]);
-  const [filteredBons, setFilteredBons] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBon, setSelectedBon] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -204,35 +51,48 @@ const BonManagement = () => {
   const [bundleInfo, setBundleInfo] = useState('');
   const [isPromotion, setIsPromotion] = useState(false);
   const [promotionInfo, setPromotionInfo] = useState('');
-
-  // Load bons data
-  useEffect(() => {
-    // In a real app, this would be an API call
-    setBons(mockBons);
-    setFilteredBons(mockBons);
-  }, []);
-
-  // Filter bons based on search query
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredBons(bons);
-      return;
+  const queryClient = useQueryClient();
+  
+  // Fetch bons data using React Query
+  const { data: bons = [], isLoading, error } = useQuery({
+    queryKey: ['bons'],
+    queryFn: bonsAPI.getAll
+  });
+  
+  // Update bon mutation
+  const updateBonMutation = useMutation({
+    mutationFn: (updatedBon) => bonsAPI.update(updatedBon.id, updatedBon),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bons'] });
+      toast({
+        title: "Bon mis à jour",
+        description: "Les informations du bon ont été mises à jour.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: `Erreur lors de la mise à jour: ${error.message}`,
+        variant: "destructive",
+      });
     }
+  });
+  
+  // Filtered bons based on search query
+  const filteredBons = searchQuery.trim() === '' 
+    ? bons 
+    : bons.filter(bon => {
+        const query = searchQuery.toLowerCase();
+        return bon.id.toLowerCase().includes(query) ||
+          bon.supplier?.toLowerCase().includes(query) ||
+          bon.warehouseRef?.toLowerCase().includes(query) ||
+          bon.products?.some(product => 
+            product.name.toLowerCase().includes(query) ||
+            product.category.toLowerCase().includes(query)
+          );
+      });
 
-    const query = searchQuery.toLowerCase();
-    const filtered = bons.filter(
-      bon => 
-        bon.id.toLowerCase().includes(query) ||
-        bon.supplier.toLowerCase().includes(query) ||
-        bon.warehouseRef.toLowerCase().includes(query) ||
-        bon.products.some(product => 
-          product.name.toLowerCase().includes(query) ||
-          product.category.toLowerCase().includes(query)
-        )
-    );
-    
-    setFilteredBons(filtered);
-  }, [searchQuery, bons]);
+
 
   // Handle product selection for editing
   const handleProductSelect = (bon, product) => {
@@ -257,74 +117,58 @@ const BonManagement = () => {
       return;
     }
 
-    // Update the product in the bon
-    const updatedBons = bons.map(bon => {
-      if (bon.id === selectedBon.id) {
-        const updatedProducts = bon.products.map(product => {
-          if (product.id === selectedProduct.id) {
-            return {
-              ...product,
-              sellingPrice: parseFloat(newSellingPrice),
-              bundle: isBundled,
-              bundleInfo: isBundled ? bundleInfo : null,
-              promotion: isPromotion,
-              promotionInfo: isPromotion ? promotionInfo : null,
-              readyForSale: true
-            };
-          }
-          return product;
-        });
-        
-        return {
-          ...bon,
-          products: updatedProducts,
-          status: updatedProducts.every(p => p.readyForSale) ? 'ready_for_sale' : 'in_progress'
-        };
-      }
-      return bon;
-    });
+    // Create updated bon with modified product
+    const updatedBon = {
+      ...selectedBon,
+      products: selectedBon.products.map(product => {
+        if (product.id === selectedProduct.id) {
+          return {
+            ...product,
+            sellingPrice: parseFloat(newSellingPrice),
+            bundle: isBundled,
+            bundleInfo: isBundled ? bundleInfo : null,
+            promotion: isPromotion,
+            promotionInfo: isPromotion ? promotionInfo : null,
+            readyForSale: true
+          };
+        }
+        return product;
+      })
+    };
+    
+    // Update status if all products are ready for sale
+    updatedBon.status = updatedBon.products.every(p => p.readyForSale) 
+      ? 'ready_for_sale' 
+      : 'in_progress';
 
-    setBons(updatedBons);
-    setFilteredBons(updatedBons);
+    // Use mutation to update the bon
+    updateBonMutation.mutate(updatedBon);
     setIsProductDialogOpen(false);
-
-    toast({
-      title: "Produit mis à jour",
-      description: "Les informations de prix et de vente ont été mises à jour.",
-    });
   };
 
   // Mark a bon as ready for sale
   const handleMarkBonReady = (bonId) => {
-    const updatedBons = bons.map(bon => {
-      if (bon.id === bonId) {
-        // Check if all products have pricing information
-        const allProductsReady = bon.products.every(product => product.readyForSale);
-        
-        if (!allProductsReady) {
-          toast({
-            title: "Action impossible",
-            description: "Tous les produits doivent être configurés avant de marquer le bon comme prêt.",
-            variant: "destructive",
-          });
-          return bon;
-        }
-        
-        return {
-          ...bon,
-          status: 'ready_for_sale'
-        };
-      }
-      return bon;
-    });
-
-    setBons(updatedBons);
-    setFilteredBons(updatedBons);
-
-    toast({
-      title: "Bon prêt pour la vente",
-      description: "Le bon a été marqué comme prêt pour la vente.",
-    });
+    const bon = bons.find(b => b.id === bonId);
+    if (!bon) return;
+    
+    // Check if all products have pricing information
+    const allProductsReady = bon.products.every(product => product.readyForSale);
+    
+    if (!allProductsReady) {
+      toast({
+        title: "Action impossible",
+        description: "Tous les produits doivent être configurés avant de marquer le bon comme prêt.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const updatedBon = {
+      ...bon,
+      status: 'ready_for_sale'
+    };
+    
+    updateBonMutation.mutate(updatedBon);
   };
 
   // Calculate the percentage of products ready in a bon
@@ -380,7 +224,29 @@ const BonManagement = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredBons.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-6">
+              <div className="animate-pulse flex space-x-4">
+                <div className="flex-1 space-y-6 py-1">
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="h-4 bg-gray-200 rounded col-span-2"></div>
+                      <div className="h-4 bg-gray-200 rounded col-span-1"></div>
+                    </div>
+                    <div className="h-4 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4">Chargement des bons...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-6 text-red-500">
+              <AlertCircle className="mx-auto h-12 w-12" />
+              <h3 className="mt-4 text-lg font-medium">Erreur de chargement</h3>
+              <p className="mt-1 text-sm">{error.message}</p>
+            </div>
+          ) : filteredBons.length === 0 ? (
             <div className="text-center py-6">
               <Package className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-4 text-lg font-medium">Aucun bon trouvé</h3>
@@ -483,7 +349,7 @@ const BonManagement = () => {
                             <TableCell>
                               <div className="flex space-x-1">
                                 {product.bundle && <Tag className="h-4 w-4 text-purple-500" title="Lot/Montage" />}
-                                {product.promotion && <Layers className="h-4 w-4 text-blue-500" title="Promotion" />}
+                                {product.promotion && <Layers className="h-4 w-4 text-gray-500" title="Promotion" />}
                               </div>
                             </TableCell>
                             <TableCell>

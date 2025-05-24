@@ -605,9 +605,9 @@ const ApprovedOrdersTracking = () => {
                     <span>Livré</span>
                     <span>Reçu</span>
                   </div>
-                  <Progress value={selectedOrder.progressPercentage} className="h-2" />
+                  <Progress value={selectedOrder?.progressPercentage || 0} className="h-2" />
                   <div className="text-xs text-muted-foreground text-right">
-                    {selectedOrder.progressPercentage}% complété
+                    {selectedOrder?.progressPercentage || 0}% complété
                   </div>
                 </div>
               </div>
@@ -626,7 +626,7 @@ const ApprovedOrdersTracking = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedOrder.items.map((item) => (
+                    {(selectedOrder?.items || []).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
                         <TableCell>{item.category}</TableCell>
@@ -639,10 +639,10 @@ const ApprovedOrdersTracking = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {item.unitPrice.toFixed(2)} €
+                          {(item.unitPrice || 0).toFixed(2)} €
                         </TableCell>
                         <TableCell className="text-right">
-                          {item.total.toFixed(2)} €
+                          {(item.total || 0).toFixed(2)} €
                         </TableCell>
                         <TableCell>
                           {getStatusBadge(item.status)}
@@ -654,17 +654,17 @@ const ApprovedOrdersTracking = () => {
                         Total estimé
                       </TableCell>
                       <TableCell className="text-right font-bold">
-                        {selectedOrder.estimatedTotal.toFixed(2)} €
+                        {(selectedOrder?.estimatedTotal || 0).toFixed(2)} €
                       </TableCell>
                       <TableCell></TableCell>
                     </TableRow>
-                    {selectedOrder.actualTotal && (
+                    {selectedOrder?.actualTotal && (
                       <TableRow>
                         <TableCell colSpan={4} className="text-right font-medium">
                           Total réel
                         </TableCell>
                         <TableCell className="text-right font-bold">
-                          {selectedOrder.actualTotal.toFixed(2)} €
+                          {(selectedOrder?.actualTotal || 0).toFixed(2)} €
                         </TableCell>
                         <TableCell></TableCell>
                       </TableRow>
@@ -673,11 +673,11 @@ const ApprovedOrdersTracking = () => {
                 </Table>
               </div>
 
-              {selectedOrder.validationNote && (
+              {selectedOrder?.validationNote && (
                 <div>
                   <h3 className="text-sm font-medium">Note d'approbation</h3>
                   <p className="mt-1 text-sm p-3 bg-gray-50 rounded-md">
-                    {selectedOrder.validationNote}
+                    {selectedOrder?.validationNote || 'Aucune note'}
                   </p>
                 </div>
               )}

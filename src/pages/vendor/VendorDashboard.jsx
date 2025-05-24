@@ -1,19 +1,41 @@
 
 import React from 'react';
-import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { ordersAPI, productsAPI } from '../../lib/api';
 import DashboardCard from '../../components/DashboardCard';
 import { 
-  ShoppingCart, Receipt, Clock, CheckCircle, XCircle, AlertTriangle 
+  ShoppingCart, Receipt, Clock, CheckCircle, XCircle, AlertTriangle, Loader2 
 } from 'lucide-react';
+import { Card, CardContent } from "@/components/ui/card";
 
 const VendorDashboard = () => {
-  const { user } = useSelector((state) => state.auth);
-  const { orders } = useSelector((state) => state.orders);
-  const { products } = useSelector((state) => state.products);
-
+  // Mock user ID - in a real app, this would come from authentication context
+  const userId = 1; // Assuming vendor has ID 1
+  
+  // Fetch orders using React Query
+  const { 
+    data: orders = [], 
+    isLoading: ordersLoading 
+  } = useQuery({
+    queryKey: ['orders'],
+    queryFn: ordersAPI.getAll
+  });
+  
+  // Fetch products using React Query
+  const { 
+    data: products = [], 
+    isLoading: productsLoading 
+  } = useQuery({
+    queryKey: ['products'],
+    queryFn: productsAPI.getAll
+  });
+  
+  // Loading state
+  const isLoading = ordersLoading || productsLoading;
+  
   // Filter orders created by this vendor
-  const myOrders = orders.filter(order => order.createdBy === user.id);
+  const myOrders = orders.filter(order => order.createdBy === userId || order.vendorId === userId);
   
   // Count orders by status
   const pendingOrders = myOrders.filter(order => order.status === 'pending').length;
@@ -27,37 +49,46 @@ const VendorDashboard = () => {
   );
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">Bienvenue, {user.name}</h1>
-        <p className="text-gray-600">Gérez vos bons de commande et suivez leur état</p>
-      </div>
+    <div className="container mx-auto p-6 space-y-6">
+      {isLoading ? (
+        <Card>
+          <CardContent className="flex items-center justify-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2">Chargement des données...</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div>
+            <h1 className="text-3xl font-bold">Tableau de bord Fournisseur</h1>
+            <p className="text-gray-500">Bienvenue. Voici un aperçu de vos activités.</p>
+          </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <DashboardCard 
-          title="Bons en attente" 
-          value={pendingOrders} 
-          icon={Clock} 
-          color="warning" 
-        />
-        <DashboardCard 
-          title="Bons approuvés" 
-          value={approvedOrders} 
-          icon={CheckCircle} 
-          color="success" 
-        />
-        <DashboardCard 
-          title="Bons rejetés" 
-          value={rejectedOrders} 
-          icon={XCircle} 
-          color="danger" 
-        />
-        <DashboardCard 
-          title="Produits en alerte" 
-          value={lowStockProducts.length} 
-          icon={AlertTriangle} 
-          color="warning" 
-        />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <DashboardCard 
+              title="Bons en attente" 
+              value={pendingOrders} 
+              icon={Clock} 
+              color="warning" 
+            />
+            <DashboardCard 
+              title="Bons approuvés" 
+              value={approvedOrders} 
+              icon={CheckCircle} 
+              color="success" 
+            />
+            <DashboardCard 
+              title="Bons rejetés" 
+              value={rejectedOrders} 
+              icon={XCircle} 
+              color="danger" 
+            />
+            <DashboardCard 
+              title="Produits en alerte" 
+              value={lowStockProducts.length} 
+              icon={AlertTriangle} 
+              color="warning" 
+            />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -193,6 +224,8 @@ const VendorDashboard = () => {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };

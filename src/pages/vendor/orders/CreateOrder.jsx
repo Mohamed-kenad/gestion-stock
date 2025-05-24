@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { categoriesAPI, productsAPI, ordersAPI } from '../../../lib/api';
 import { 
   Plus, Minus, Trash2, Search, Save, FileText, Package, Calendar, 
   User, Building, AlertTriangle, Check, X
@@ -44,37 +46,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 
-// Mock data
-const mockCategories = [
-  { id: 1, name: 'Viandes' },
-  { id: 2, name: 'Légumes' },
-  { id: 3, name: 'Fruits' },
-  { id: 4, name: 'Produits laitiers' },
-  { id: 5, name: 'Boissons' },
-  { id: 6, name: 'Céréales' },
-  { id: 7, name: 'Épices' },
-  { id: 8, name: 'Conserves' },
-];
-
-const mockProducts = [
-  { id: 1, name: 'Poulet', category: 'Viandes', unit: 'kg', price: 45.00, stock: 25 },
-  { id: 2, name: 'Boeuf', category: 'Viandes', unit: 'kg', price: 120.00, stock: 15 },
-  { id: 3, name: 'Tomates', category: 'Légumes', unit: 'kg', price: 8.00, stock: 50 },
-  { id: 4, name: 'Pommes de terre', category: 'Légumes', unit: 'kg', price: 5.00, stock: 100 },
-  { id: 5, name: 'Pommes', category: 'Fruits', unit: 'kg', price: 15.00, stock: 40 },
-  { id: 6, name: 'Bananes', category: 'Fruits', unit: 'kg', price: 12.00, stock: 35 },
-  { id: 7, name: 'Lait', category: 'Produits laitiers', unit: 'L', price: 7.00, stock: 60 },
-  { id: 8, name: 'Fromage', category: 'Produits laitiers', unit: 'kg', price: 80.00, stock: 20 },
-  { id: 9, name: 'Eau minérale', category: 'Boissons', unit: 'L', price: 5.00, stock: 120 },
-  { id: 10, name: 'Jus d\'orange', category: 'Boissons', unit: 'L', price: 10.00, stock: 30 },
-  { id: 11, name: 'Riz', category: 'Céréales', unit: 'kg', price: 12.00, stock: 80 },
-  { id: 12, name: 'Pâtes', category: 'Céréales', unit: 'kg', price: 8.00, stock: 70 },
-  { id: 13, name: 'Sel', category: 'Épices', unit: 'kg', price: 3.00, stock: 90 },
-  { id: 14, name: 'Poivre', category: 'Épices', unit: 'kg', price: 50.00, stock: 15 },
-  { id: 15, name: 'Thon en conserve', category: 'Conserves', unit: 'boîte', price: 15.00, stock: 40 },
-];
-
-const mockDepartments = [
+// Department data - this could also come from an API in the future
+const departments = [
   { id: 1, name: 'Cuisine' },
   { id: 2, name: 'Pâtisserie' },
   { id: 3, name: 'Bar' },
@@ -85,6 +58,7 @@ const mockDepartments = [
 const CreateOrder = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const [orderItems, setOrderItems] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -97,8 +71,40 @@ const CreateOrder = () => {
   const [urgency, setUrgency] = useState('normal');
   const [showProductDialog, setShowProductDialog] = useState(false);
   
+  // Fetch categories using React Query
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ['categories'],
+    queryFn: categoriesAPI.getAll
+  });
+  
+  // Fetch products using React Query
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ['products'],
+    queryFn: productsAPI.getAll
+  });
+  
+  // Create order mutation
+  const createOrderMutation = useMutation({
+    mutationFn: (orderData) => ordersAPI.create(orderData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: "Commande créée",
+        description: "Votre bon de commande a été créé avec succès.",
+      });
+      navigate('/dashboard/vendor/orders');
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: `Erreur lors de la création: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
   // Filter products based on search and category
-  const filteredProducts = mockProducts.filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -166,45 +172,56 @@ const CreateOrder = () => {
   
   // Submit order
   const handleSubmitOrder = () => {
-    if (!orderTitle) {
+    if (!orderTitle.trim()) {
       toast({
-        title: "Erreur",
-        description: "Veuillez spécifier un titre pour le bon de commande.",
+        title: "Titre requis",
+        description: "Veuillez donner un titre à votre commande.",
         variant: "destructive",
       });
       return;
     }
-    
-    if (!department) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez sélectionner un département.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
+
     if (orderItems.length === 0) {
       toast({
-        title: "Erreur",
-        description: "Veuillez ajouter au moins un produit au bon de commande.",
+        title: "Aucun produit",
+        description: "Veuillez ajouter au moins un produit à votre commande.",
         variant: "destructive",
       });
       return;
     }
     
-    // Here you would normally send the order to the server
-    // For now, we'll just show a success message and redirect
+    // Calculate total amount
+    const total = calculateTotal();
     
-    toast({
-      title: "Bon de commande créé",
-      description: "Le bon de commande a été créé avec succès.",
-    });
+    // Create order data object with all necessary fields
+    const orderData = {
+      id: `PO-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+      title: orderTitle,
+      description: orderDescription,
+      department: department,
+      urgency: urgency,
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString().split('T')[0],
+      status: 'pending',
+      userId: 2, // In a real app, this would come from authentication
+      createdBy: 'Vendor User', // In a real app, this would come from authentication
+      createdByRole: 'Vendor',
+      supplier: 'Fournisseur Principal', // Default supplier, could be selected by user
+      estimatedTotal: total,
+      total: total,
+      items: orderItems.map(item => ({
+        id: item.product.id,
+        product: item.product.name,
+        category: item.product.category,
+        quantity: item.quantity,
+        unit: item.product.unit || 'pcs',
+        price: item.product.price,
+        total: item.product.price * item.quantity
+      }))
+    };
     
-    // Redirect to orders page
-    setTimeout(() => {
-      navigate('/dashboard/vendor/orders');
-    }, 1500);
+    // Use mutation to create the order
+    createOrderMutation.mutate(orderData);
   };
   
   // Handle product selection
@@ -250,7 +267,8 @@ const CreateOrder = () => {
                   <SelectValue placeholder="Sélectionner un département" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockDepartments.map((dept) => (
+                  <SelectItem value="">Sélectionner un département</SelectItem>
+                  {departments.map(dept => (
                     <SelectItem key={dept.id} value={dept.name}>
                       {dept.name}
                     </SelectItem>
@@ -345,11 +363,15 @@ const CreateOrder = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Toutes les catégories</SelectItem>
-                            {mockCategories.map((category) => (
-                              <SelectItem key={category.id} value={category.name}>
-                                {category.name}
-                              </SelectItem>
-                            ))}
+                            {categoriesLoading ? (
+                              <SelectItem value="loading">Chargement...</SelectItem>
+                            ) : (
+                              categories.map(category => (
+                                <SelectItem key={category.id} value={category.id.toString()}>
+                                  {category.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

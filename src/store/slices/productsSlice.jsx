@@ -1,15 +1,55 @@
 
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { productsAPI } from '../../lib/api';
+
+// Async thunks for API calls
+export const fetchProducts = createAsyncThunk(
+  'products/fetchProducts',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await productsAPI.getAll();
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const addProductAsync = createAsyncThunk(
+  'products/addProduct',
+  async (productData, { rejectWithValue }) => {
+    try {
+      return await productsAPI.create(productData);
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const updateProductAsync = createAsyncThunk(
+  'products/updateProduct',
+  async ({ id, ...productData }, { rejectWithValue }) => {
+    try {
+      return await productsAPI.update(id, productData);
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const deleteProductAsync = createAsyncThunk(
+  'products/deleteProduct',
+  async (id, { rejectWithValue }) => {
+    try {
+      await productsAPI.delete(id);
+      return id;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
 
 const initialState = {
-  products: [
-    { id: 1, name: 'Rice', categoryId: 1, quantity: 100, price: 25, threshold: 20 },
-    { id: 2, name: 'Pasta', categoryId: 1, quantity: 150, price: 15, threshold: 30 },
-    { id: 3, name: 'Tomato Sauce', categoryId: 2, quantity: 80, price: 10, threshold: 15 },
-    { id: 4, name: 'Olive Oil', categoryId: 2, quantity: 50, price: 30, threshold: 10 },
-    { id: 5, name: 'Chicken', categoryId: 3, quantity: 40, price: 50, threshold: 10 },
-    { id: 6, name: 'Beef', categoryId: 3, quantity: 30, price: 70, threshold: 5 }
-  ],
+  products: [],
   loading: false,
   error: null
 };
@@ -18,22 +58,6 @@ export const productsSlice = createSlice({
   name: 'products',
   initialState,
   reducers: {
-    addProduct: (state, action) => {
-      const newProduct = {
-        id: state.products.length + 1,
-        ...action.payload
-      };
-      state.products.push(newProduct);
-    },
-    updateProduct: (state, action) => {
-      const index = state.products.findIndex(p => p.id === action.payload.id);
-      if (index !== -1) {
-        state.products[index] = { ...state.products[index], ...action.payload };
-      }
-    },
-    deleteProduct: (state, action) => {
-      state.products = state.products.filter(p => p.id !== action.payload);
-    },
     updateStock: (state, action) => {
       const { productId, change } = action.payload;
       const product = state.products.find(p => p.id === productId);
@@ -41,9 +65,40 @@ export const productsSlice = createSlice({
         product.quantity += change;
       }
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch products
+      .addCase(fetchProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.products = action.payload;
+      })
+      .addCase(fetchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Add product
+      .addCase(addProductAsync.fulfilled, (state, action) => {
+        state.products.push(action.payload);
+      })
+      // Update product
+      .addCase(updateProductAsync.fulfilled, (state, action) => {
+        const index = state.products.findIndex(p => p.id === action.payload.id);
+        if (index !== -1) {
+          state.products[index] = action.payload;
+        }
+      })
+      // Delete product
+      .addCase(deleteProductAsync.fulfilled, (state, action) => {
+        state.products = state.products.filter(p => p.id !== action.payload);
+      });
   }
 });
 
-export const { addProduct, updateProduct, deleteProduct, updateStock } = productsSlice.actions;
+export const { updateStock } = productsSlice.actions;
 
 export default productsSlice.reducer;

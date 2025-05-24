@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { productsAPI, salesAPI } from '../../../lib/api';
 import { 
   Search, ShoppingCart, Plus, Minus, Trash2, Receipt, Save, 
   CreditCard, Banknote, Package, User, DollarSign, Percent, X,
@@ -47,109 +49,37 @@ import { Separator } from "../../../components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { useToast } from "../../../components/ui/use-toast";
 
-// Mock data for products
-const mockProducts = [
-  {
-    id: 1,
-    name: 'Farine de blé T55',
-    category: 'Ingrédients',
-    unit: 'kg',
-    sellingPrice: 4.75,
-    stock: 120,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580012',
-  },
-  {
-    id: 2,
-    name: 'Sucre en poudre',
-    category: 'Ingrédients',
-    unit: 'kg',
-    sellingPrice: 3.25,
-    stock: 85,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580029',
-  },
-  {
-    id: 3,
-    name: 'Huile d\'olive extra vierge',
-    category: 'Ingrédients',
-    unit: 'L',
-    sellingPrice: 15.90,
-    stock: 45,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580036',
-  },
-  {
-    id: 4,
-    name: 'Vodka premium',
-    category: 'Boissons',
-    unit: 'bouteille',
-    sellingPrice: 42.50,
-    stock: 32,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580043',
-  },
-  {
-    id: 5,
-    name: 'Rhum ambré',
-    category: 'Boissons',
-    unit: 'bouteille',
-    sellingPrice: 48.90,
-    stock: 28,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580050',
-  },
-  {
-    id: 6,
-    name: 'Gin London Dry',
-    category: 'Boissons',
-    unit: 'bouteille',
-    sellingPrice: 44.50,
-    stock: 35,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580067',
-  },
-  {
-    id: 7,
-    name: 'Détergent multi-surfaces',
-    category: 'Entretien',
-    unit: 'L',
-    sellingPrice: 5.90,
-    stock: 60,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580074',
-  },
-  {
-    id: 8,
-    name: 'Désinfectant alimentaire',
-    category: 'Entretien',
-    unit: 'L',
-    sellingPrice: 7.90,
-    stock: 48,
-    image: 'https://via.placeholder.com/50',
-    barcode: '3760049580081',
-  },
-];
-
-// Mock data for customers
-const mockCustomers = [
-  { id: 1, name: 'Restaurant Le Gourmet', type: 'business', contact: '+33 1 23 45 67 89', email: 'contact@legourmet.fr' },
-  { id: 2, name: 'Hôtel Luxe', type: 'business', contact: '+33 1 23 45 67 90', email: 'reservations@hotelluxe.fr' },
-  { id: 3, name: 'Café Central', type: 'business', contact: '+33 1 23 45 67 91', email: 'info@cafecentral.fr' },
-  { id: 4, name: 'Client occasionnel', type: 'individual', contact: '', email: '' },
-];
-
-const POSInterface = ({ role = 'cashier' }) => {
+const POSInterface = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
-  // State for product search and filtering
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Mock products data to use when API is unavailable
+  const mockProducts = [
+    { id: 1, name: 'Rice', categoryId: 1, quantity: 100, price: 25, threshold: 20 },
+    { id: 2, name: 'Pasta', categoryId: 1, quantity: 150, price: 15, threshold: 30 },
+    { id: 3, name: 'Tomato Sauce', categoryId: 2, quantity: 80, price: 10, threshold: 15 },
+    { id: 4, name: 'Olive Oil', categoryId: 2, quantity: 50, price: 30, threshold: 10 },
+    { id: 5, name: 'Chicken', categoryId: 3, quantity: 40, price: 50, threshold: 10 },
+    { id: 6, name: 'Beef', categoryId: 3, quantity: 30, price: 70, threshold: 5 }
+  ];
+  
+  // Fetch products using React Query with error handling
+  const { data: products = mockProducts, isLoading: productsLoading, isError: productsError } = useQuery({
+    queryKey: ['products'],
+    queryFn: productsAPI.getAll,
+    onError: (error) => {
+      console.error('Error fetching products:', error);
+      return mockProducts; // Return mock data on error
+    },
+    retry: 1,
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+  
+  const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   
   // State for current sale
-  const [cartItems, setCartItems] = useState([]);
   const [customer, setCustomer] = useState('4'); // Default to occasional client
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState('');
@@ -167,7 +97,7 @@ const POSInterface = ({ role = 'cashier' }) => {
   const [darkMode, setDarkMode] = useState(false);
   
   // Role-specific styling
-  const isVendor = role === 'vendor';
+  const isVendor = true; // Change to false for cashier
   const themeColor = isVendor ? 'blue' : 'green';
   const roleTitle = isVendor ? 'Vendor Sales Interface' : 'Cashier POS Interface';
   
@@ -184,11 +114,22 @@ const POSInterface = ({ role = 'cashier' }) => {
   // State for favorite products
   const [favoriteProducts, setFavoriteProducts] = useState([1, 4, 6]);
   
+  // Loading state
+  const [loading, setLoading] = useState(true);
+  
+  // Mock customers data
+  const mockCustomers = [
+    { id: 1, name: 'Restaurant Marrakech', type: 'business', email: 'contact@marrakech.com', phone: '0612345678' },
+    { id: 2, name: 'Café Central', type: 'business', email: 'info@cafecentral.com', phone: '0623456789' },
+    { id: 3, name: 'Hôtel Royal', type: 'business', email: 'reservation@hotelroyal.com', phone: '0634567890' },
+    { id: 4, name: 'Client occasionnel', type: 'individual', email: '', phone: '' }
+  ];
+  
   // Load products
   useEffect(() => {
     // Simulate API call
     setTimeout(() => {
-      setProducts(mockProducts);
+      setCart([]);
       setLoading(false);
       
       // Set quick access products (most popular)
@@ -213,30 +154,38 @@ const POSInterface = ({ role = 'cashier' }) => {
   });
   
   // Add product to cart
-  const handleAddToCart = (product) => {
-    // Check if product already exists in cart
-    const existingItem = cartItems.find(item => item.id === product.id);
+  const addToCart = (product) => {
+    // Check if product is already in cart
+    const existingItem = cart.find(item => item.id === product.id);
+    
+    // Check if we have enough stock
+    if (product.stock <= 0) {
+      toast({
+        title: "Produit indisponible",
+        description: "Ce produit n'est pas en stock.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (existingItem) {
-      // Update quantity if product already in cart
-      handleUpdateQuantity(existingItem.id, existingItem.quantity + 1);
+      // If already in cart, increment quantity if stock allows
+      if (existingItem.quantity < product.stock) {
+        setCart(cart.map(item => 
+          item.id === product.id 
+            ? { ...item, quantity: item.quantity + 1 } 
+            : item
+        ));
+      } else {
+        toast({
+          title: "Stock insuffisant",
+          description: "Vous avez atteint la quantité maximale disponible pour ce produit.",
+          variant: "destructive"
+        });
+      }
     } else {
-      // Add new product to cart
-      setCartItems([
-        ...cartItems,
-        {
-          id: product.id,
-          name: product.name,
-          price: product.sellingPrice,
-          quantity: 1,
-          total: product.sellingPrice,
-        }
-      ]);
-      
-      toast({
-        title: "Produit ajouté",
-        description: `${product.name} a été ajouté au panier.`,
-      });
+      // Otherwise, add new item to cart
+      setCart([...cart, { ...product, quantity: 1 }]);
     }
   };
   
@@ -252,7 +201,7 @@ const POSInterface = ({ role = 'cashier' }) => {
     const matchedProduct = product || partialMatch;
     
     if (matchedProduct) {
-      handleAddToCart(matchedProduct);
+      addToCart(matchedProduct);
       toast({
         title: "Produit scanné",
         description: `${matchedProduct.name} (Code: ${matchedProduct.barcode}) a été ajouté au panier.`,
@@ -273,7 +222,7 @@ const POSInterface = ({ role = 'cashier' }) => {
   const handleUpdateQuantity = (itemId, newQuantity) => {
     if (newQuantity < 1) return;
     
-    const updatedItems = cartItems.map(item => {
+    const updatedItems = cart.map(item => {
       if (item.id === itemId) {
         return {
           ...item,
@@ -284,16 +233,16 @@ const POSInterface = ({ role = 'cashier' }) => {
       return item;
     });
     
-    setCartItems(updatedItems);
+    setCart(updatedItems);
   };
   
   // Remove item from cart
   const handleRemoveItem = (itemId) => {
-    setCartItems(cartItems.filter(item => item.id !== itemId));
+    setCart(cart.filter(item => item.id !== itemId));
   };
   
   // Calculate subtotal
-  const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0);
+  const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
   
   // Calculate discount amount
   const discountAmount = (subtotal * discount) / 100;
@@ -306,7 +255,7 @@ const POSInterface = ({ role = 'cashier' }) => {
   
   // Process payment
   const handleProcessPayment = () => {
-    if (cartItems.length === 0) {
+    if (cart.length === 0) {
       toast({
         title: "Erreur",
         description: "Le panier est vide. Ajoutez des produits avant de procéder au paiement.",
@@ -335,7 +284,7 @@ const POSInterface = ({ role = 'cashier' }) => {
     });
     
     // Reset form for new sale
-    setCartItems([]);
+    setCart([]);
     setCustomer('4');
     setDiscount(0);
     setNotes('');
@@ -346,7 +295,7 @@ const POSInterface = ({ role = 'cashier' }) => {
   
   // Open payment dialog
   const handleOpenPaymentDialog = () => {
-    if (cartItems.length === 0) {
+    if (cart.length === 0) {
       toast({
         title: "Erreur",
         description: "Le panier est vide. Ajoutez des produits avant de procéder au paiement.",
@@ -407,7 +356,7 @@ const POSInterface = ({ role = 'cashier' }) => {
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
-              {loading ? (
+              {productsLoading ? (
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
                 </div>
@@ -419,7 +368,7 @@ const POSInterface = ({ role = 'cashier' }) => {
                     </div>
                   ) : (
                     filteredProducts.map((product) => (
-                      <Card key={product.id} className="cursor-pointer hover:bg-gray-50" onClick={() => handleAddToCart(product)}>
+                      <Card key={product.id} className="cursor-pointer hover:bg-gray-50" onClick={() => addToCart(product)}>
                         <CardContent className="p-4 flex items-center space-x-4">
                           <div className="flex-shrink-0">
                             <img src={product.image} alt={product.name} className="w-12 h-12 rounded-md object-cover" />
@@ -430,9 +379,9 @@ const POSInterface = ({ role = 'cashier' }) => {
                               <Badge variant="outline" className="mr-1 text-xs">{product.category}</Badge>
                             </div>
                             <div className="flex justify-between items-center mt-1">
-                              <p className="text-sm font-bold">{product.sellingPrice.toFixed(2)} €</p>
-                              <Badge className={product.stock > 10 ? "bg-green-500" : "bg-yellow-500"}>
-                                {product.stock} {product.unit}
+                              <p className="text-sm font-bold">{(product.sellingPrice || product.price || 0).toFixed(2)} €</p>
+                              <Badge className={(product.stock || product.quantity || 0) > 10 ? "bg-green-500" : "bg-yellow-500"}>
+                                {product.stock || product.quantity || 0} {product.unit || 'pcs'}
                               </Badge>
                             </div>
                             <div className="mt-1 flex items-center">
@@ -482,7 +431,7 @@ const POSInterface = ({ role = 'cashier' }) => {
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
-              {cartItems.length === 0 ? (
+              {cart.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 border rounded-md">
                   Le panier est vide. Ajoutez des produits pour créer une vente.
                 </div>
@@ -498,10 +447,10 @@ const POSInterface = ({ role = 'cashier' }) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {cartItems.map((item) => (
+                    {cart.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.price.toFixed(2)} €</TableCell>
+                        <TableCell>{(item.price || 0).toFixed(2)} €</TableCell>
                         <TableCell>
                           <div className="flex items-center">
                             <Button
@@ -523,7 +472,7 @@ const POSInterface = ({ role = 'cashier' }) => {
                             </Button>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{item.total.toFixed(2)} €</TableCell>
+                        <TableCell className="text-right">{(item.total || 0).toFixed(2)} €</TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -572,23 +521,23 @@ const POSInterface = ({ role = 'cashier' }) => {
               <div className="w-full space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Sous-total:</span>
-                  <span>{subtotal.toFixed(2)} €</span>
+                  <span>{(subtotal || 0).toFixed(2)} €</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Remise ({discount}%):</span>
-                  <span>-{discountAmount.toFixed(2)} €</span>
+                  <span className="text-gray-500">Remise ({discount || 0}%):</span>
+                  <span>-{(discountAmount || 0).toFixed(2)} €</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-bold">
                   <span>Total:</span>
-                  <span>{total.toFixed(2)} €</span>
+                  <span>{(total || 0).toFixed(2)} €</span>
                 </div>
               </div>
               <Button 
                 className="w-full" 
                 size="lg"
                 onClick={handleOpenPaymentDialog}
-                disabled={cartItems.length === 0}
+                disabled={cart.length === 0}
               >
                 <DollarSign className="mr-2 h-5 w-5" />
                 Procéder au paiement
@@ -653,9 +602,9 @@ const POSInterface = ({ role = 'cashier' }) => {
                     id="amountPaid"
                     type="number"
                     step="0.01"
-                    min={total}
+                    min={total ? total.toString() : "0"}
                     className="pl-8"
-                    value={amountPaid}
+                    value={amountPaid ? amountPaid.toString() : "0"}
                     onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
                   />
                 </div>
