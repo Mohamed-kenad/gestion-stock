@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsAPI, salesAPI } from '../../../lib/api';
+import { productsAPI, salesAPI, bonsAPI } from '../../../lib/api';
 import { 
   Search, ShoppingCart, Plus, Minus, Trash2, Receipt, Save, 
   CreditCard, Banknote, Package, User, DollarSign, Percent, X,
@@ -64,7 +64,7 @@ const POSInterface = () => {
   ];
   
   // Fetch products using React Query with error handling
-  const { data: products = mockProducts, isLoading: productsLoading, isError: productsError } = useQuery({
+  const { data: allProducts = mockProducts, isLoading: productsLoading, isError: productsError } = useQuery({
     queryKey: ['products'],
     queryFn: productsAPI.getAll,
     onError: (error) => {
@@ -73,6 +73,16 @@ const POSInterface = () => {
     },
     retry: 1,
     staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+  
+  // Fetch bons to get products that have been priced by the Auditor
+  const {
+    data: bons = [],
+    isLoading: bonsLoading
+  } = useQuery({
+    queryKey: ['bons', 'ready_for_sale'],
+    queryFn: () => bonsAPI.getByStatus('ready_for_sale'),
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
   
   const [cart, setCart] = useState([]);
@@ -97,7 +107,7 @@ const POSInterface = () => {
   const [darkMode, setDarkMode] = useState(false);
   
   // Role-specific styling
-  const isVendor = true; // Change to false for cashier
+  const isVendor = false; // Set to false for cashier
   const themeColor = isVendor ? 'blue' : 'green';
   const roleTitle = isVendor ? 'Vendor Sales Interface' : 'Cashier POS Interface';
   
@@ -124,6 +134,44 @@ const POSInterface = () => {
     { id: 3, name: 'Hôtel Royal', type: 'business', email: 'reservation@hotelroyal.com', phone: '0634567890' },
     { id: 4, name: 'Client occasionnel', type: 'individual', email: '', phone: '' }
   ];
+  
+  // Use products directly from bons that have been priced by the Auditor
+  const products = React.useMemo(() => {
+    // First, create a map of all products from bons with their complete information
+    const bonProductsMap = new Map();
+    
+    bons.forEach(bon => {
+      if (bon.status === 'ready_for_sale') {
+        bon.products?.forEach(product => {
+          if (product.readyForSale !== false) {
+            // Use ID as key, with fallbacks
+            const productId = product.id?.toString() || product.productId?.toString();
+            if (productId) {
+              bonProductsMap.set(productId, {
+                id: productId,
+                name: product.name,
+                category: product.category,
+                quantity: product.quantity || 0,
+                stock: product.quantity || 0, // Add stock property for compatibility
+                unit: product.unit || 'unité',
+                price: product.sellingPrice || 0, // Use selling price set by Auditor
+                sellingPrice: product.sellingPrice || 0,
+                purchasePrice: product.purchasePrice || 0,
+                readyForSale: true,
+                bundle: product.bundle || false,
+                bundleInfo: product.bundleInfo,
+                promotion: product.promotion || false,
+                promotionInfo: product.promotionInfo
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    // Convert the map to an array of products
+    return Array.from(bonProductsMap.values());
+  }, [bons]);
   
   // Load products
   useEffect(() => {
@@ -573,7 +621,7 @@ const POSInterface = () => {
           <div className="space-y-4 py-4">
             <div className="flex justify-between font-bold text-lg">
               <span>Total à payer:</span>
-              <span>{total.toFixed(2)} €</span>
+              <span>{total.toFixed(2)} DH</span>
             </div>
             
             <Separator />
@@ -610,7 +658,7 @@ const POSInterface = () => {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span>Monnaie à rendre:</span>
-                  <span className="font-bold">{change.toFixed(2)} €</span>
+                  <span className="font-bold">{change.toFixed(2)} DH</span>
                 </div>
               </div>
             )}

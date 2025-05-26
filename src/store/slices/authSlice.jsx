@@ -1,15 +1,16 @@
-
 import { createSlice } from '@reduxjs/toolkit';
 
 // Sample users for demo purposes
 const initialUsers = [
   { id: 1, username: 'admin', password: 'admin123', role: 'admin', name: 'Admin User' },
   { id: 2, username: 'vendor', password: 'vendor123', role: 'vendor', name: 'Vendor User' },
-  { id: 3, username: 'chef', password: 'chef123', role: 'chef', name: 'Chef User' },
   { id: 4, username: 'purchase', password: 'purchase123', role: 'purchase', name: 'Purchase Agent' },
   { id: 5, username: 'cashier', password: 'cashier123', role: 'cashier', name: 'Cashier' },
   { id: 6, username: 'auditor', password: 'auditor123', role: 'auditor', name: 'Auditor' },
   { id: 7, username: 'magasin', password: 'magasin123', role: 'magasin', name: 'Warehouse Manager' },
+  { id: 8, username: 'chef2', password: 'chef2123', role: 'chef2', name: 'Department Head' },
+  { id: 9, username: 'achat2', password: 'achat2123', role: 'achat2', name: 'Purchasing Department' },
+  { id: 10, username: 'magasin2', password: 'magasin2123', role: 'magasin2', name: 'Warehouse Department' },
 ];
 
 // Get user data from localStorage if available

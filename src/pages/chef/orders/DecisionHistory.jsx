@@ -40,8 +40,11 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { addDays, format } from "date-fns";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
-// Mock data
-const mockDecisions = [
+import { ordersAPI } from '../../../lib/api';
+import { useQuery } from '@tanstack/react-query';
+
+// Fallback mock data in case API fails
+const fallbackDecisions = [
   { 
     id: 'PO-2025-002', 
     title: 'Commande légumes',
@@ -159,8 +162,6 @@ const mockDecisions = [
 ];
 
 const DecisionHistory = () => {
-  const [decisions, setDecisions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -174,13 +175,32 @@ const DecisionHistory = () => {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
+  // Fetch decision history data using React Query
+  const { data: decisions = [], isLoading: loading, error, refetch } = useQuery({
+    queryKey: ['decisionHistory'],
+    queryFn: ordersAPI.getDecisionHistory,
+    staleTime: 10000, // 10 seconds for more frequent updates during testing
+    refetchOnWindowFocus: true, // Refresh when window gains focus
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+  
+  // Function to handle manual refresh
+  const handleRefresh = () => {
+    console.log('Manually refreshing decision history data...');
+    refetch();
+  };
+
+  // Log decisions data for debugging
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setDecisions(mockDecisions);
-      setLoading(false);
-    }, 800);
-  }, []);
+    console.log('Decision history data:', decisions);
+  }, [decisions]);
+  
+  // Handle error
+  useEffect(() => {
+    if (error) {
+      console.error('Error fetching decision history:', error);
+    }
+  }, [error]);
 
   // Filter decisions based on search term, filters, and date range
   const filteredDecisions = decisions.filter(decision => {
@@ -224,15 +244,7 @@ const DecisionHistory = () => {
     setIsViewDialogOpen(true);
   };
 
-  // Handle refresh
-  const handleRefresh = () => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setDecisions(mockDecisions);
-      setLoading(false);
-    }, 800);
-  };
+  // This function is now handled by React Query's refetch
 
   // Handle export
   const handleExport = () => {
@@ -250,7 +262,7 @@ const DecisionHistory = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={handleRefresh}>
+          <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Actualiser
           </Button>

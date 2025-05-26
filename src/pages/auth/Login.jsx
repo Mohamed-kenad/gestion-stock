@@ -95,11 +95,11 @@ const Login = () => {
             Pour le test, utilisez les identifiants:<br />
             - admin / admin123<br />
             - vendor / vendor123<br />
-            - chef / chef123<br />
-            - purchase / purchase123<br />
+            - chef2 / chef2123<br />
+            - achat2 / achat2123<br />
             - cashier / cashier123<br />
             - auditor / auditor123<br />
-            - magasin / magasin123
+            - magasin2 / magasin2123
           </p>
         </div>
       </form>

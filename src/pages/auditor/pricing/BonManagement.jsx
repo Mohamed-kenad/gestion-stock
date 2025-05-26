@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { bonsAPI } from '../../../lib/api';
+import { bonsAPI, productsAPI, categoriesAPI, notificationsAPI } from '../../../lib/api';
 import { useToast } from '../../../hooks/use-toast';
 import { 
   Card, 
@@ -33,12 +33,13 @@ import {
 } from '../../../components/ui/accordion';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
+import { ScrollArea } from '../../../components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { Label } from '../../../components/ui/label';
 import { Badge } from '../../../components/ui/badge';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Package, Search, CheckCircle, AlertCircle, Tag, Layers } from 'lucide-react';
-
-
+import { Package, Search, CheckCircle, AlertCircle, Tag, Layers, Plus, Filter, Bell, BellRing } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '../../../components/ui/alert';
 
 const BonManagement = () => {
   const { toast } = useToast();
@@ -51,12 +52,36 @@ const BonManagement = () => {
   const [bundleInfo, setBundleInfo] = useState('');
   const [isPromotion, setIsPromotion] = useState(false);
   const [promotionInfo, setPromotionInfo] = useState('');
+  const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+  const [productToAdd, setProductToAdd] = useState(null);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const queryClient = useQueryClient();
   
   // Fetch bons data using React Query
   const { data: bons = [], isLoading, error } = useQuery({
     queryKey: ['bons'],
-    queryFn: bonsAPI.getAll
+    queryFn: () => bonsAPI.getAll(),
+    refetchInterval: 30000 // Refetch every 30 seconds to catch new bons
+  });
+  
+  // Fetch notifications for auditor
+  const { data: notifications = [] } = useQuery({
+    queryKey: ['notifications', 'auditor'],
+    queryFn: () => notificationsAPI.getByRole('auditor'),
+    refetchInterval: 15000 // Check for new notifications every 15 seconds
+  });
+  
+  // Fetch products data
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productsAPI.getAll()
+  });
+  
+  // Fetch categories data
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesAPI.getAll()
   });
   
   // Update bon mutation
@@ -104,6 +129,51 @@ const BonManagement = () => {
     setIsPromotion(product.promotion || false);
     setPromotionInfo(product.promotionInfo || '');
     setIsProductDialogOpen(true);
+  };
+  
+  // Filter products based on search and category
+  const filteredProducts = productSearchTerm.trim() === '' && selectedCategory === 'all'
+    ? products
+    : products.filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(productSearchTerm.toLowerCase());
+        const matchesCategory = selectedCategory === 'all' || 
+                              (product.categoryId && product.categoryId.toString() === selectedCategory) || 
+                              (product.category && categories.find(c => c.name === product.category)?.id.toString() === selectedCategory);
+        return matchesSearch && matchesCategory;
+      });
+  
+  // Handle adding a product to a bon
+  const handleAddProductToBon = () => {
+    if (!productToAdd || !selectedBon) return;
+    
+    // Create a new product entry for the bon
+    const newProduct = {
+      id: `${selectedBon.id}-p${selectedBon.products.length + 1}`,
+      name: productToAdd.name,
+      category: productToAdd.category,
+      purchasePrice: productToAdd.price,
+      quantity: 1,
+      unit: productToAdd.unit || 'pcs',
+      readyForSale: false
+    };
+    
+    // Update the bon with the new product
+    const updatedBon = {
+      ...selectedBon,
+      products: [...selectedBon.products, newProduct],
+      totalItems: (selectedBon.totalItems || 0) + 1
+    };
+    
+    // Use mutation to update the bon
+    updateBonMutation.mutate(updatedBon);
+    setIsAddProductDialogOpen(false);
+    setProductToAdd(null);
+    setProductSearchTerm('');
+    
+    toast({
+      title: "Produit ajouté",
+      description: `${productToAdd.name} a été ajouté au bon ${selectedBon.id}.`,
+    });
   };
 
   // Save product pricing and information
@@ -173,7 +243,7 @@ const BonManagement = () => {
 
   // Calculate the percentage of products ready in a bon
   const calculateReadyPercentage = (bon) => {
-    if (!bon.products.length) return 0;
+    if (!bon || !bon.products || !bon.products.length) return 0;
     const readyProducts = bon.products.filter(p => p.readyForSale).length;
     return Math.round((readyProducts / bon.products.length) * 100);
   };
@@ -192,15 +262,107 @@ const BonManagement = () => {
     }
   };
 
+  // Filter unread notifications related to pricing
+  const unreadPricingNotifications = notifications.filter(n => 
+    !n.read && 
+    (n.title.includes('Définition de prix') || n.title.includes('livraison') || n.message.includes('prix de vente'))
+  );
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await notificationsAPI.update(notificationId, { read: true });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'auditor'] });
+      toast({
+        title: "Notification marquée comme lue",
+        description: "La notification a été marquée comme lue.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: `Erreur lors de la mise à jour de la notification: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Find a bon by reference ID
+  const findBonByReference = (referenceId) => {
+    return bons.find(bon => bon.id === referenceId);
+  };
+
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestion des Bons</h1>
-          <p className="text-gray-500">
-            Examinez et configurez les prix de vente pour les produits des bons de commande
-          </p>
+    <div className="container mx-auto p-4 space-y-6">
+      <h1 className="text-2xl font-bold">Gestion des Bons de Réception</h1>
+      
+      {/* Notifications Section */}
+      {unreadPricingNotifications.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <BellRing className="h-5 w-5 text-amber-500" />
+            Nouvelles Notifications ({unreadPricingNotifications.length})
+          </h2>
+          <div className="space-y-3">
+            {unreadPricingNotifications.map(notification => {
+              const relatedBon = notification.reference ? findBonByReference(notification.reference) : null;
+              return (
+                <Alert key={notification.id} className="bg-amber-50 border-amber-200">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start gap-2">
+                      <Bell className="h-4 w-4 text-amber-500 mt-1" />
+                      <div>
+                        <AlertTitle className="text-amber-800">{notification.title}</AlertTitle>
+                        <AlertDescription className="text-amber-700 mt-1">
+                          {notification.message}
+                        </AlertDescription>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {relatedBon && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                          onClick={() => {
+                            setSelectedBon(relatedBon);
+                            markNotificationAsRead(notification.id);
+                          }}
+                        >
+                          Voir le Bon
+                        </Button>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-amber-600 border-amber-200 hover:bg-amber-50"
+                        onClick={() => markNotificationAsRead(notification.id)}
+                      >
+                        Marquer comme lu
+                      </Button>
+                    </div>
+                  </div>
+                </Alert>
+              );
+            })}
+          </div>
         </div>
+      )}
+      
+      {/* Search and Filter */}
+      <div className="flex items-center space-x-2">
+        <div className="relative flex-grow">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Rechercher un bon par ID, fournisseur, produit..."
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => setSearchQuery('')}>
+          Réinitialiser
+        </Button>
       </div>
 
       <div className="mb-6">
@@ -285,16 +447,19 @@ const BonManagement = () => {
                     <div className="mb-4">
                       <div className="flex justify-between items-center mb-2">
                         <h4 className="font-medium">Détails du bon</h4>
-                        {bon.status !== 'ready_for_sale' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleMarkBonReady(bon.id)}
-                            disabled={!bon.products.every(p => p.readyForSale)}
-                          >
-                            Marquer comme prêt pour la vente
-                          </Button>
-                        )}
+                        <div className="flex space-x-2">
+               
+                          {bon.status !== 'ready_for_sale' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleMarkBonReady(bon.id)}
+                              disabled={!bon || !bon.products || !bon.products.every(p => p.readyForSale)}
+                            >
+                              Marquer comme prêt pour la vente
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-sm mb-4">
                         <div>
@@ -333,7 +498,7 @@ const BonManagement = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {bon.products.map((product) => (
+                        {bon && bon.products && bon.products.map((product) => (
                           <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.name}</TableCell>
                             <TableCell>{product.category}</TableCell>
@@ -516,6 +681,122 @@ const BonManagement = () => {
             </Button>
             <Button onClick={handleSaveProduct}>
               Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Product Dialog */}
+      <Dialog open={isAddProductDialogOpen} onOpenChange={setIsAddProductDialogOpen}>
+        <DialogContent className="sm:max-w-[725px]">
+          <DialogHeader>
+            <DialogTitle>Ajouter un produit au bon</DialogTitle>
+            <DialogDescription>
+              Recherchez et sélectionnez un produit à ajouter au bon
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Rechercher un produit..."
+                    className="pl-8"
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="w-[200px]">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Catégorie" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toutes les catégories</SelectItem>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.id.toString()}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <ScrollArea className="h-[300px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produit</TableHead>
+                    <TableHead>Catégorie</TableHead>
+                    <TableHead>Unité</TableHead>
+                    <TableHead className="text-right">Prix</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-4">
+                        Aucun produit trouvé
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredProducts.map((product) => (
+                      <TableRow 
+                        key={product.id} 
+                        className={`cursor-pointer hover:bg-muted ${productToAdd?.id === product.id ? 'bg-muted' : ''}`}
+                        onClick={() => setProductToAdd(product)}
+                      >
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell>{product.category}</TableCell>
+                        <TableCell>{product.unit || 'pcs'}</TableCell>
+                        <TableCell className="text-right">{product.price?.toFixed(2) || '0.00'} €</TableCell>
+                        <TableCell className="text-right">{product.quantity || 0}</TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setProductToAdd(product);
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+            
+            {productToAdd && (
+              <div className="border rounded-lg p-4 mt-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-semibold">{productToAdd.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {productToAdd.category} - {productToAdd.price?.toFixed(2) || '0.00'} €/{productToAdd.unit || 'pcs'}
+                    </p>
+                  </div>
+                  <Button onClick={handleAddProductToBon}>
+                    Ajouter au bon
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddProductDialogOpen(false)}>
+              Annuler
             </Button>
           </DialogFooter>
         </DialogContent>

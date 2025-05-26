@@ -42,13 +42,12 @@ const Sidebar = ({ user, closeSidebar }) => {
           { icon: FolderOpen, name: 'Produits par catégorie', path: '/dashboard/vendor/products' },
           { icon: Bell, name: 'Notifications', path: '/dashboard/vendor/notifications' },
         ];
-      case 'chef':
+      case 'chef2':
         return [
-          { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/chef' },
-          { icon: CheckSquare, name: 'Valider ou rejeter un bon', path: '/dashboard/chef/orders/validate' },
-          { icon: History, name: 'Historique des décisions', path: '/dashboard/chef/orders/history' },
-          { icon: PackageOpen, name: 'Suivi des bons validés', path: '/dashboard/chef/orders/tracking' },
-          { icon: Bell, name: 'Alertes de validation', path: '/dashboard/chef/alerts' },
+          { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/chef2' },
+          { icon: CheckSquare, name: 'Examiner les bons', path: '/dashboard/chef2/orders/review' },
+          { icon: History, name: 'Historique des décisions', path: '/dashboard/chef2/orders/history' },
+          { icon: PackageOpen, name: 'Suivi des bons approuvés', path: '/dashboard/chef2/orders/tracking' },
         ];
       case 'purchase':
         return [
@@ -57,6 +56,13 @@ const Sidebar = ({ user, closeSidebar }) => {
           { icon: FileText, name: 'Enregistrer un achat', path: '/dashboard/purchase/record' },
           { icon: History, name: 'Historique des achats', path: '/dashboard/purchase/history' },
           { icon: Users, name: 'Fournisseurs', path: '/dashboard/purchase/suppliers' },
+        ];
+      case 'achat2':
+        return [
+          { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/achat2' },
+          { icon: FileText, name: 'Bons à traiter', path: '/dashboard/achat2/orders' },
+          { icon: History, name: 'Historique des achats', path: '/dashboard/achat2/purchases' },
+          { icon: Users, name: 'Fournisseurs', path: '/dashboard/achat2/suppliers' },
         ];
       // 'store' role removed as 'magasin' provides the same functionality
       case 'cashier':
@@ -82,6 +88,14 @@ const Sidebar = ({ user, closeSidebar }) => {
           { icon: FileInput, name: 'Réceptions', path: '/dashboard/magasin/reception' },
           { icon: Calendar, name: 'Calendrier Réceptions', path: '/dashboard/magasin/reception/calendar' },
           { icon: BarChart2, name: 'Rapports de Stock', path: '/dashboard/magasin/reports' },
+        ];
+      case 'magasin2':
+        return [
+          { icon: LayoutDashboard, name: 'Tableau de bord', path: '/dashboard/magasin2' },
+          { icon: Package, name: 'Gestion de Stock', path: '/dashboard/magasin2/inventory' },
+          { icon: FileInput, name: 'Réceptions', path: '/dashboard/magasin2/reception' },
+          { icon: Users, name: 'Demandes Vendeurs', path: '/dashboard/magasin2/requests' },
+          { icon: FilePlus, name: "Demandes d'Achat", path: '/dashboard/magasin2/purchase' },
         ];
       default:
         return [];

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { ordersAPI, notificationsAPI } from '../../../lib/api';
 import { 
   FileText, Search, Filter, Calendar, Eye, CheckCircle, X, AlertTriangle, RefreshCw
@@ -68,30 +69,66 @@ const ReviewVendorOrders = () => {
   const { 
     data: orders = [], 
     isLoading: ordersLoading, 
-    error: ordersError 
+    error: ordersError,
+    refetch: refetchOrders 
   } = useQuery({
     queryKey: ['orders'],
     queryFn: () => ordersAPI.getAll(),
     select: (data) => data.filter(order => 
       order.createdByRole === 'Vendor' && 
       (statusFilter === 'all' ? true : order.status === statusFilter)
-    )
+    ),
+    staleTime: 10000, // 10 seconds for more frequent updates during testing
+    refetchOnWindowFocus: true, // Refresh when window gains focus
   });
+  
+  // Log orders for debugging
+  useEffect(() => {
+    console.log('Pending orders for review:', orders);
+  }, [orders]);
+  
+  // Import useNavigate from react-router-dom
+  const navigate = useNavigate();
   
   // Update order status mutation
   const updateOrderMutation = useMutation({
     mutationFn: (orderData) => ordersAPI.update(orderData.id, orderData),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      console.log('Order updated successfully:', variables);
+      
+      // Invalidate all relevant queries to ensure data is refreshed everywhere
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['decisionHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['approvedOrdersTracking'] });
+      
+      // Show success message based on the action taken
+      const action = variables.status === 'approved' ? 'approuvé' : 'rejeté';
       toast({
-        title: "Bon mis à jour",
-        description: "Le bon a été mis à jour avec succès.",
+        title: `Bon ${action}`,
+        description: `Le bon a été ${action} avec succès.`,
       });
+      
+      // Reset UI state
       setReviewDialogOpen(false);
       setValidationNote('');
       setReviewItems([]);
+      
+      // Force refresh all queries immediately
+      queryClient.refetchQueries({ queryKey: ['orders'] });
+      queryClient.refetchQueries({ queryKey: ['decisionHistory'] });
+      queryClient.refetchQueries({ queryKey: ['approvedOrdersTracking'] });
+      
+      // Navigate to the appropriate page based on the action
+      setTimeout(() => {
+        if (variables.status === 'approved') {
+          navigate('/dashboard/chef/orders/tracking');
+        } else {
+          navigate('/dashboard/chef/orders/history');
+        }
+      }, 1000);
     },
     onError: (error) => {
+      console.error('Error updating order:', error);
       toast({
         title: "Erreur",
         description: `Erreur lors de la mise à jour: ${error.message}`,
@@ -171,6 +208,10 @@ const ReviewVendorOrders = () => {
     }
 
     try {
+      // Define chef name and current date
+      const chefName = 'Chef Karim'; // Would come from auth context in a real app
+      const currentDate = new Date().toISOString().split('T')[0];
+      
       // Prepare updated items with approval status and adjusted quantities
       const updatedItems = reviewItems.map(item => ({
         ...item,
@@ -180,31 +221,51 @@ const ReviewVendorOrders = () => {
 
       // Calculate new total based on approved items
       const newTotal = calculateTotal();
-
-      // Update order status and details
+      
+      // Create updated order with all necessary fields for tracking
       const updatedOrder = {
         ...selectedOrder,
         status: 'approved',
-        approvedBy: 'Chef Karim', // Would come from auth context in a real app
-        approvedAt: new Date().toISOString().split('T')[0],
-        validationNote: validationNote,
+        approvedBy: chefName,
+        approvedAt: currentDate,
+        reviewDate: currentDate,
+        reviewedBy: chefName,
+        reviewComment: validationNote || 'Approuvé',
+        reviewAction: 'approve',
+        validationNote: validationNote || 'Approuvé',
         items: updatedItems,
-        total: newTotal
+        total: newTotal,
+        purchaseStatus: 'pending',
+        deliveryStatus: 'pending',
+        progressPercentage: 25 // Order is 25% complete after chef approval
       };
+
+      console.log('Approving order with data:', updatedOrder);
 
       // Update the order
       await updateOrderMutation.mutateAsync(updatedOrder);
+      
+      // Force refresh all related queries
+      queryClient.invalidateQueries(['orders']);
+      queryClient.invalidateQueries(['decisionHistory']);
+      queryClient.invalidateQueries(['approvedOrdersTracking']);
 
-      // Send notification to Achat department
+      // Send notification to Purchase Manager
       await sendNotificationMutation.mutateAsync({
         title: 'Nouveau bon approuvé',
         message: `Le bon "${updatedOrder.title}" a été approuvé et est prêt pour achat.`,
         type: 'approved_order',
-        recipientId: '3', // Achat role ID
+        recipientId: '4', // Purchase Manager role ID
         orderId: updatedOrder.id,
-        date: new Date().toISOString().split('T')[0],
+        date: currentDate,
         read: false,
         priority: 'high'
+      });
+      
+      // Show success toast
+      toast({
+        title: "Bon approuvé",
+        description: "Le bon de commande a été approuvé avec succès.",
       });
 
     } catch (error) {
@@ -229,17 +290,33 @@ const ReviewVendorOrders = () => {
     }
 
     try {
-      // Update order status and details
+      // Define chef name and current date
+      const chefName = 'Chef Karim'; // Would come from auth context in a real app
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Update order status and details with all necessary fields for decision history
       const updatedOrder = {
         ...selectedOrder,
         status: 'rejected',
-        rejectedBy: 'Chef Karim', // Would come from auth context in a real app
-        rejectedAt: new Date().toISOString().split('T')[0],
-        validationNote: validationNote
+        rejectedBy: chefName,
+        rejectedAt: currentDate,
+        reviewDate: currentDate,
+        reviewedBy: chefName,
+        reviewComment: validationNote,
+        reviewAction: 'reject',
+        validationNote: validationNote,
+        progressPercentage: 0 // Reset progress since order is rejected
       };
+
+      console.log('Rejecting order with data:', updatedOrder);
 
       // Update the order
       await updateOrderMutation.mutateAsync(updatedOrder);
+      
+      // Force refresh all related queries
+      queryClient.invalidateQueries(['orders']);
+      queryClient.invalidateQueries(['decisionHistory']);
+      queryClient.invalidateQueries(['approvedOrdersTracking']);
 
       // Send notification to the Vendor who created the order
       await sendNotificationMutation.mutateAsync({
@@ -248,9 +325,15 @@ const ReviewVendorOrders = () => {
         type: 'rejected_order',
         recipientId: selectedOrder.userId.toString(), // Vendor user ID
         orderId: updatedOrder.id,
-        date: new Date().toISOString().split('T')[0],
+        date: currentDate,
         read: false,
         priority: 'high'
+      });
+      
+      // Show success toast
+      toast({
+        title: "Bon rejeté",
+        description: "Le bon de commande a été rejeté avec succès.",
       });
 
     } catch (error) {
@@ -299,7 +382,13 @@ const ReviewVendorOrders = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Révision des bons</h1>
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries(['orders'])}>
+          <Button variant="outline" onClick={() => {
+            console.log('Refreshing orders...');
+            refetchOrders();
+            queryClient.invalidateQueries(['orders']);
+            queryClient.invalidateQueries(['decisionHistory']);
+            queryClient.invalidateQueries(['approvedOrdersTracking']);
+          }}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Actualiser
           </Button>

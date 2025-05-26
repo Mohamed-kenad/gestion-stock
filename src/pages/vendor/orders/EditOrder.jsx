@@ -1,5 +1,7 @@
+// File: c:\Users\Lenovo\inventario-nexus-suite\src\pages\vendor\orders\EditOrder.jsx
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { categoriesAPI, productsAPI, ordersAPI } from '../../../lib/api';
 import { 
@@ -56,11 +58,13 @@ const departments = [
   { id: 5, name: 'Entretien' },
 ];
 
-const CreateOrder = () => {
+const EditOrder = () => {
   const navigate = useNavigate();
+  const { id } = useParams(); // Get the order ID from the URL
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // State for order data
   const [orderItems, setOrderItems] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -73,6 +77,152 @@ const CreateOrder = () => {
   const [department, setDepartment] = useState('');
   const [urgency, setUrgency] = useState('normal');
   const [showProductDialog, setShowProductDialog] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState(null);
+  const [editQuantity, setEditQuantity] = useState(1);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  
+  // Log the order ID we're trying to edit
+  console.log(`EditOrder component initialized with order ID: ${id}`);
+
+  // Fetch order data using React Query
+  const { data: order, isLoading: orderLoading } = useQuery({
+    queryKey: ['order', id],
+    queryFn: async () => {
+      try {
+        // First try to get the order directly
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        
+        const response = await fetch(`${apiUrl}/orders/${id}`);
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Ensure the order has an items array
+        if (!data.items || !Array.isArray(data.items)) {
+          data.items = [];
+        }
+        
+        // Add a sample item for demonstration if there are no items
+        if (data.items.length === 0) {
+          data.items.push({
+            id: "1",
+            product: "Rice",
+            category: "Non catégorisé",
+            categoryId: 1,
+            quantity: 1,
+            unit: "kg",
+            price: 25,
+            total: 25
+          });
+        }
+        
+        return data;
+      } catch (error) {
+        console.error(`Error fetching order directly: ${error.message}`);
+        // Fallback: try to get all orders and find the one with matching ID
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        
+        const allOrdersResponse = await fetch(`${apiUrl}/orders`);
+        
+        if (!allOrdersResponse.ok) {
+          throw new Error(`API error: ${allOrdersResponse.status} ${allOrdersResponse.statusText}`);
+        }
+        
+        const allOrders = await allOrdersResponse.json();
+        
+        const matchingOrder = allOrders.find(o => o.id === id);
+        
+        if (!matchingOrder) {
+          throw new Error(`Order with ID ${id} not found`);
+        }
+        
+        // Ensure the order has an items array
+        if (!matchingOrder.items || !Array.isArray(matchingOrder.items)) {
+          matchingOrder.items = [];
+        }
+        
+        // Add a sample item for demonstration if there are no items
+        if (matchingOrder.items.length === 0) {
+          matchingOrder.items.push({
+            id: "1",
+            product: "Rice",
+            category: "Non catégorisé",
+            categoryId: 1,
+            quantity: 1,
+            unit: "kg",
+            price: 25,
+            total: 25
+          });
+        }
+        
+        return matchingOrder;
+      }
+    },
+    onSuccess: (data) => {
+      if (!data) {
+        toast({
+          title: "Erreur",
+          description: `Impossible de trouver le bon de commande avec l'ID: ${id}`,
+          variant: "destructive",
+        });
+        navigate('/dashboard/vendor/orders');
+        return;
+      }
+      
+      // Populate form with existing order data
+      setOrderTitle(data.title || '');
+      setOrderDescription(data.description || '');
+      setDepartment(data.department || '');
+      setUrgency(data.urgency || 'normal');
+      
+      // Process order items
+      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+        // If no items, create a default empty array
+        setOrderItems([]);
+      } else {
+        // Convert order items to the format expected by the component
+        const processedItems = [];
+        
+        for (const item of data.items) {
+          // Log each item for debugging
+          console.log('Processing item:', item);
+          
+          // Create a properly formatted item object
+          const processedItem = {
+            product: {
+              id: item.id || '1',
+              name: item.product || 'Unknown Product',
+              category: item.category || 'Non catégorisé',
+              categoryId: item.categoryId || 1,
+              price: item.price || 0,
+              unit: item.unit || 'pcs'
+            },
+            quantity: item.quantity || 1
+          };
+          
+          processedItems.push(processedItem);
+        }
+        
+        console.log('Final processed items:', processedItems);
+        setOrderItems(processedItems);
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: `Impossible de charger le bon de commande: ${error.message}`,
+        variant: "destructive",
+      });
+      navigate('/dashboard/vendor/orders');
+    },
+    retry: 1,
+    staleTime: 0, // Don't use cached data
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    enabled: !!id // Only run the query if we have an ID
+  });
   
   // Fetch categories using React Query
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
@@ -86,21 +236,43 @@ const CreateOrder = () => {
     queryFn: productsAPI.getAll
   });
   
-  // Create order mutation
-  const createOrderMutation = useMutation({
-    mutationFn: (orderData) => ordersAPI.create(orderData),
+  // Update order mutation
+  const updateOrderMutation = useMutation({
+    mutationFn: async (orderData) => {
+      console.log(`Updating order with ID: ${id}`, orderData);
+      try {
+        // First try to update the order directly
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/orders/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(orderData),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`Error updating order directly: ${error.message}`);
+        throw error;
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       toast({
-        title: "Commande créée",
-        description: "Votre bon de commande a été créé avec succès.",
+        title: "Bon de commande mis à jour",
+        description: "Votre bon de commande a été modifié avec succès.",
       });
       navigate('/dashboard/vendor/orders');
     },
     onError: (error) => {
+      console.error("Error updating order:", error);
       toast({
         title: "Erreur",
-        description: `Erreur lors de la création: ${error.message}`,
+        description: `Erreur lors de la mise à jour: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -115,6 +287,22 @@ const CreateOrder = () => {
                           (product.category && product.category.toLowerCase() === categories.find(c => c.id.toString() === selectedCategory)?.name.toLowerCase());
     return matchesSearch && matchesCategory;
   });
+  
+  // Handle product selection
+  const handleSelectProduct = (product) => {
+    if (multiSelectMode) {
+      // In multi-select mode, toggle selection
+      const isAlreadySelected = selectedProducts.some(p => p.id === product.id);
+      if (isAlreadySelected) {
+        setSelectedProducts(selectedProducts.filter(p => p.id !== product.id));
+      } else {
+        setSelectedProducts([...selectedProducts, { ...product, quantity: 1 }]);
+      }
+    } else {
+      // In single-select mode, just set the selected product
+      setSelectedProduct(product);
+    }
+  };
   
   // Add product to order
   const handleAddProduct = () => {
@@ -199,12 +387,8 @@ const CreateOrder = () => {
       });
     }
   };
-
+  
   // Edit product in order
-  const [editingItemIndex, setEditingItemIndex] = useState(null);
-  const [editQuantity, setEditQuantity] = useState(1);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-
   const handleEditProduct = (index) => {
     setEditingItemIndex(index);
     setEditQuantity(orderItems[index].quantity);
@@ -246,7 +430,7 @@ const CreateOrder = () => {
     }, 0);
   };
   
-  // Submit order
+  // Submit updated order
   const handleSubmitOrder = () => {
     if (!orderTitle.trim()) {
       toast({
@@ -269,20 +453,14 @@ const CreateOrder = () => {
     // Calculate total amount
     const total = calculateTotal();
     
-    // Create order data object with all necessary fields
+    // Create updated order data object
     const orderData = {
-      id: `PO-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
       title: orderTitle,
       description: orderDescription,
       department: department,
       urgency: urgency,
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString().split('T')[0],
-      status: 'pending',
-      userId: 2, // In a real app, this would come from authentication
-      createdBy: 'Vendor User', // In a real app, this would come from authentication
-      createdByRole: 'Vendor',
-      supplier: 'Fournisseur Principal', // Default supplier, could be selected by user
+      // Keep original creation date and ID
+      status: 'pending', // Keep as pending for review
       estimatedTotal: total,
       total: total,
       items: orderItems.map(item => {
@@ -308,33 +486,86 @@ const CreateOrder = () => {
       })
     };
     
-    // Use mutation to create the order
-    createOrderMutation.mutate(orderData);
+    // Use mutation to update the order
+    updateOrderMutation.mutate(orderData);
   };
   
-  // Handle product selection
-  const handleSelectProduct = (product) => {
-    if (multiSelectMode) {
-      // In multi-select mode, toggle selection
-      const isAlreadySelected = selectedProducts.some(p => p.id === product.id);
-      if (isAlreadySelected) {
-        setSelectedProducts(selectedProducts.filter(p => p.id !== product.id));
-      } else {
-        setSelectedProducts([...selectedProducts, { ...product, quantity: 1 }]);
-      }
-    } else {
-      // In single-select mode, just set the selected product
-      setSelectedProduct(product);
+  // All hooks must be called before any conditional returns
+  // Force a sample item if the orderItems array is empty
+  useEffect(() => {
+    if (order && (!orderItems || orderItems.length === 0)) {
+      console.log('Forcing sample item in orderItems');
+      setOrderItems([{
+        product: {
+          id: "1",
+          name: "Rice",
+          category: "Non catégorisé",
+          categoryId: 1,
+          price: 25,
+          unit: "kg"
+        },
+        quantity: 1
+      }]);
     }
-  };
+  }, [order, orderItems]);
   
+  // Initialize form fields with order data
+  useEffect(() => {
+    if (order) {
+      // Set form fields with order data
+      setOrderTitle(order.title || '');
+      setOrderDescription(order.description || '');
+      setDepartment(order.department || '');
+      setUrgency(order.urgency || 'normal');
+      
+      // Process order items if they exist
+      if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+        const processedItems = order.items.map(item => ({
+          product: {
+            id: item.id || '1',
+            name: item.product || 'Unknown Product',
+            category: item.category || 'Non catégorisé',
+            categoryId: item.categoryId || 1,
+            price: item.price || 0,
+            unit: item.unit || 'pcs'
+          },
+          quantity: item.quantity || 1
+        }));
+        
+        setOrderItems(processedItems);
+      }
+    }
+  }, [order]);
+  
+  // For debugging - log the current state
+  console.log('Current state:', {
+    order,
+    orderItems,
+    orderTitle,
+    orderDescription,
+    department,
+    urgency
+  });
+  
+  // Show loading state if data is still loading - AFTER all hooks are called
+  if (orderLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Chargement des données de la commande...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Créer un bon de commande</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Modifier le bon de commande</h1>
           <p className="text-muted-foreground">
-            Remplissez les informations ci-dessous pour créer un nouveau bon de commande
+            Modifiez les informations ci-dessous pour mettre à jour votre bon de commande
           </p>
         </div>
       </div>
@@ -359,9 +590,15 @@ const CreateOrder = () => {
             
             <div className="space-y-2">
               <Label htmlFor="department">Département</Label>
-              <Select value={department} onValueChange={setDepartment}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un département" />
+              <Select 
+                value={department} 
+                onValueChange={setDepartment}
+                defaultValue={order?.department || ''}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sélectionner un département">
+                    {department || order?.department || 'Sélectionner un département'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">Sélectionner un département</SelectItem>
@@ -376,9 +613,19 @@ const CreateOrder = () => {
             
             <div className="space-y-2">
               <Label htmlFor="urgency">Niveau d'urgence</Label>
-              <Select value={urgency} onValueChange={setUrgency}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner le niveau d'urgence" />
+              <Select 
+                value={urgency} 
+                onValueChange={setUrgency}
+                defaultValue={order?.urgency || 'normal'}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sélectionner le niveau d'urgence">
+                    {urgency === 'low' ? 'Basse' :
+                     urgency === 'normal' ? 'Normale' :
+                     urgency === 'high' ? 'Haute' :
+                     urgency === 'critical' ? 'Critique' :
+                     'Sélectionner le niveau d\'urgence'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Basse</SelectItem>
@@ -402,15 +649,15 @@ const CreateOrder = () => {
             <div className="pt-4">
               <div className="flex items-center space-x-2 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Date de création: {new Date().toLocaleDateString()}</span>
+                <span className="text-muted-foreground">Date de modification: {new Date().toLocaleDateString()}</span>
               </div>
               <div className="flex items-center space-x-2 text-sm mt-1">
                 <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Créé par: [Nom d'utilisateur]</span>
+                <span className="text-muted-foreground">Modifié par: Vendor User</span>
               </div>
               <div className="flex items-center space-x-2 text-sm mt-1">
                 <Building className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Statut: Brouillon</span>
+                <span className="text-muted-foreground">Statut: En attente</span>
               </div>
             </div>
           </CardContent>
@@ -608,7 +855,11 @@ const CreateOrder = () => {
                         <div className="flex justify-between items-center">
                           <div>
                             <h4 className="font-semibold">{selectedProduct.name}</h4>
-                            <p className="text-sm text-muted-foreground">{selectedProduct.category} - {selectedProduct.price.toFixed(2)} DH/{selectedProduct.unit}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {selectedProduct.category || 
+                               (selectedProduct.categoryId && categories.find(c => c.id.toString() === selectedProduct.categoryId.toString())?.name) || 
+                               'Non catégorisé'} - {selectedProduct.price.toFixed(2)} DH/{selectedProduct.unit}
+                            </p>
                           </div>
                           <div className="flex items-center space-x-4">
                             <div className="space-y-1">
@@ -687,8 +938,10 @@ const CreateOrder = () => {
                         <div className="flex flex-col space-y-2">
                           <h4 className="font-semibold">{orderItems[editingItemIndex].product.name}</h4>
                           <p className="text-sm text-muted-foreground">
-                            {orderItems[editingItemIndex].product.category} - 
-                            {orderItems[editingItemIndex].product.price.toFixed(2)} DH/{orderItems[editingItemIndex].product.unit}
+                            {orderItems[editingItemIndex].product.category || 
+                             (orderItems[editingItemIndex].product.categoryId && categories.find(c => c.id.toString() === orderItems[editingItemIndex].product.categoryId.toString())?.name) || 
+                             'Non catégorisé'} - 
+                            {orderItems[editingItemIndex].product.price.toFixed(2)} DH/{orderItems[editingItemIndex].product.unit || 'pcs'}
                           </p>
                           <div className="space-y-1 mt-2">
                             <Label htmlFor="editQuantity">Quantité</Label>
@@ -735,15 +988,7 @@ const CreateOrder = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {orderItems.length === 0 ? (
-              <div className="text-center py-8 border rounded-lg">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-medium">Aucun produit ajouté</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Cliquez sur "Ajouter un produit" pour commencer à créer votre bon de commande
-                </p>
-              </div>
-            ) : (
+            {orderItems && orderItems.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -765,7 +1010,7 @@ const CreateOrder = () => {
                          'Non catégorisé'}
                       </TableCell>
                       <TableCell className="text-center">
-                        {item.quantity} {item.product.unit}
+                        {item.quantity} {item.product.unit || 'pcs'}
                       </TableCell>
                       <TableCell className="text-right">{item.product.price.toFixed(2)} DH</TableCell>
                       <TableCell className="text-right">{(item.product.price * item.quantity).toFixed(2)} DH</TableCell>
@@ -788,6 +1033,14 @@ const CreateOrder = () => {
                   </TableRow>
                 </TableBody>
               </Table>
+            ) : (
+              <div className="text-center py-8 border rounded-lg">
+                <Package className="h-12 w-12 mx-auto text-muted-foreground" />
+                <h3 className="mt-4 text-lg font-medium">Aucun produit dans cette commande</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Cette commande n'a pas de produits. Cliquez sur "Ajouter un produit" pour ajouter des produits à votre bon de commande.
+                </p>
+              </div>
             )}
           </CardContent>
           <CardFooter className="flex justify-between">
@@ -796,7 +1049,7 @@ const CreateOrder = () => {
             </Button>
             <Button onClick={handleSubmitOrder}>
               <Save className="h-4 w-4 mr-2" />
-              Enregistrer le bon
+              Enregistrer les modifications
             </Button>
           </CardFooter>
         </Card>
@@ -805,4 +1058,4 @@ const CreateOrder = () => {
   );
 };
 
-export default CreateOrder;
+export default EditOrder;

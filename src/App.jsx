@@ -18,11 +18,13 @@ import Register from "./pages/auth/Register";
 // Role-based dashboards
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import VendorDashboard from "./pages/vendor/VendorDashboard";
-import ChefDashboard from "./pages/chef/ChefDashboard";
+import Chef2Dashboard from "./pages/chef2/Chef2Dashboard";
 import PurchaseDashboard from "./pages/purchase/PurchaseDashboard";
 import CashierDashboard from "./pages/cashier/CashierDashboard";
 import AuditorDashboard from "./pages/auditor/AuditorDashboard";
 import MagasinDashboard from "./pages/magasin/Dashboard";
+import Achat2Dashboard from "./pages/achat2/Achat2Dashboard";
+import Magasin2Dashboard from "./pages/magasin2/Dashboard";
 import NotFound from "./pages/NotFound";
 
 // Lazy loaded pages to improve initial load time
@@ -49,6 +51,7 @@ const SystemSettings = lazy(() => import("./pages/admin/settings/SystemSettings"
 // Vendor Pages
 // Import all existing vendor components
 const VendorCreateOrder = lazy(() => import("./pages/vendor/orders/CreateOrder"));
+const VendorEditOrder = lazy(() => import("./pages/vendor/orders/EditOrder"));
 const VendorImportOrder = lazy(() => import("./pages/vendor/orders/ImportOrder"));
 const VendorOrders = lazy(() => import("./pages/vendor/orders/MyOrders"));
 const VendorPendingOrders = lazy(() => import("./pages/vendor/orders/PendingOrders"));
@@ -56,18 +59,24 @@ const VendorProducts = lazy(() => import("./pages/vendor/products/ProductsByCate
 const VendorNotifications = lazy(() => import("./pages/vendor/notifications/Notifications"));
 const VendorPOS = lazy(() => import("./pages/vendor/sales/VendorPOS"));
 
-// Chef Pages
-const ValidateOrders = lazy(() => import("./pages/chef/orders/ValidateOrders"));
-const DecisionsHistory = lazy(() => import("./pages/chef/orders/DecisionHistory"));
-const ValidatedOrdersTracking = lazy(() => import("./pages/chef/orders/ApprovedOrdersTracking"));
-const ValidationAlerts = lazy(() => import("./pages/chef/orders/ValidationAlerts"));
+// Chef2 (Department Head) Pages
+const ReviewVendorOrders = lazy(() => import("./pages/chef2/orders/ReviewVendorOrders"));
+const Chef2DecisionsHistory = lazy(() => import("./pages/chef2/orders/DecisionHistory"));
+const Chef2ApprovedOrdersTracking = lazy(() => import("./pages/chef2/orders/ApprovedOrdersTracking"));
 
 // Purchase Pages
 const ValidatedOrdersToProcess = lazy(() => import("./pages/purchase/orders/ValidatedOrdersToProcess"));
 const ApprovedOrders = lazy(() => import("./pages/achat/orders/ApprovedOrders"));
 const RecordPurchase = lazy(() => import("./pages/purchase/RecordPurchase"));
-const PurchaseHistory = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+const PurchaseHistory = lazy(() => import("./pages/purchase/PurchaseHistory"));
 const SuppliersList = lazy(() => Promise.resolve({ default: PlaceholderComponent })); // To be implemented
+
+// Achat2 (Purchasing Department) Pages
+const Achat2PendingOrders = lazy(() => import("./pages/achat2/orders/PendingOrders"));
+const Achat2ProcessOrder = lazy(() => import("./pages/achat2/orders/ProcessOrder"));
+const Achat2PurchaseHistory = lazy(() => import("./pages/achat2/purchases/PurchaseHistory"));
+const Achat2PurchaseDetails = lazy(() => import("./pages/achat2/purchases/PurchaseDetails"));
+const Achat2Suppliers = lazy(() => import("./pages/achat2/suppliers/Suppliers"));
 
 // Store Pages removed as 'magasin' provides the same functionality
 
@@ -100,6 +109,16 @@ const ReceptionList = lazy(() => import("./pages/magasin/reception/ReceptionList
 const ReceptionCalendar = lazy(() => import("./pages/magasin/reception/ReceptionCalendar"));
 const ReceptionManager = lazy(() => import("./pages/magasin/reception/ReceptionManager"));
 const StockMovementReport = lazy(() => import("./pages/magasin/reports/StockMovementReport"));
+
+// Magasin2 (Warehouse) Pages
+const Magasin2InventoryManager = lazy(() => import("./pages/magasin2/inventory/InventoryManager"));
+const Magasin2ReceptionList = lazy(() => import("./pages/magasin2/reception/ReceptionList"));
+const Magasin2ReceptionManager = lazy(() => import("./pages/magasin2/reception/ReceptionManager"));
+const Magasin2VendorRequests = lazy(() => import("./pages/magasin2/requests/VendorRequests"));
+const Magasin2PurchaseRequests = lazy(() => import("./pages/magasin2/purchase/PurchaseRequests"));
+const Magasin2PurchaseRequestDetails = lazy(() => import("./pages/magasin2/purchase/PurchaseRequestDetails"));
+const Magasin2CreatePurchaseRequest = lazy(() => import("./pages/magasin2/purchase/CreatePurchaseRequest"));
+const TestProducts = lazy(() => import("./pages/magasin2/purchase/TestProducts"));
 
 const queryClient = new QueryClient();
 
@@ -151,6 +170,7 @@ const App = () => (
               {/* Vendor Routes */}
               <Route path="vendor" element={<VendorDashboard />} />
               <Route path="vendor/orders/create" element={<Suspense fallback={<Loader />}><VendorCreateOrder /></Suspense>} />
+              <Route path="vendor/orders/edit/:id" element={<Suspense fallback={<Loader />}><VendorEditOrder /></Suspense>} />
               <Route path="vendor/orders/import" element={<Suspense fallback={<Loader />}><VendorImportOrder /></Suspense>} />
               <Route path="vendor/orders" element={<Suspense fallback={<Loader />}><VendorOrders /></Suspense>} />
               <Route path="vendor/products" element={<Suspense fallback={<Loader />}><VendorProducts /></Suspense>} />
@@ -158,12 +178,11 @@ const App = () => (
               <Route path="vendor/notifications" element={<Suspense fallback={<Loader />}><VendorNotifications /></Suspense>} />
               <Route path="vendor/sales" element={<Suspense fallback={<Loader />}><SharedPOS role="vendor" /></Suspense>} />
               
-              {/* Chef Routes */}
-              <Route path="chef" element={<ChefDashboard />} />
-              <Route path="chef/orders/validate" element={<Suspense fallback={<Loader />}><ValidateOrders /></Suspense>} />
-              <Route path="chef/orders/history" element={<Suspense fallback={<Loader />}><DecisionsHistory /></Suspense>} />
-              <Route path="chef/orders/tracking" element={<Suspense fallback={<Loader />}><ValidatedOrdersTracking /></Suspense>} />
-              <Route path="chef/alerts" element={<Suspense fallback={<Loader />}><ValidationAlerts /></Suspense>} />
+              {/* Chef2 (Department Head) Routes */}
+              <Route path="chef2" element={<Chef2Dashboard />} />
+              <Route path="chef2/orders/review" element={<Suspense fallback={<Loader />}><ReviewVendorOrders /></Suspense>} />
+              <Route path="chef2/orders/history" element={<Suspense fallback={<Loader />}><Chef2DecisionsHistory /></Suspense>} />
+              <Route path="chef2/orders/tracking" element={<Suspense fallback={<Loader />}><Chef2ApprovedOrdersTracking /></Suspense>} />
               
               {/* Purchase Routes */}
               <Route path="purchase" element={<PurchaseDashboard />} />
@@ -172,6 +191,14 @@ const App = () => (
               <Route path="purchase/record" element={<Suspense fallback={<Loader />}><RecordPurchase /></Suspense>} />
               <Route path="purchase/history" element={<Suspense fallback={<Loader />}><PurchaseHistory /></Suspense>} />
               <Route path="purchase/suppliers" element={<Suspense fallback={<Loader />}><SuppliersList /></Suspense>} />
+              
+              {/* Achat2 (Purchasing Department) Routes */}
+              <Route path="achat2" element={<Achat2Dashboard />} />
+              <Route path="achat2/orders" element={<Suspense fallback={<Loader />}><Achat2PendingOrders /></Suspense>} />
+              <Route path="achat2/orders/:id" element={<Suspense fallback={<Loader />}><Achat2ProcessOrder /></Suspense>} />
+              <Route path="achat2/purchases" element={<Suspense fallback={<Loader />}><Achat2PurchaseHistory /></Suspense>} />
+              <Route path="achat2/purchases/:id" element={<Suspense fallback={<Loader />}><Achat2PurchaseDetails /></Suspense>} />
+              <Route path="achat2/suppliers" element={<Suspense fallback={<Loader />}><Achat2Suppliers /></Suspense>} />
               
               {/* Store Routes removed as 'magasin' provides the same functionality */}
               
@@ -205,6 +232,17 @@ const App = () => (
               <Route path="magasin/reception/calendar" element={<Suspense fallback={<Loader />}><ReceptionCalendar /></Suspense>} />
               <Route path="magasin/reception/:orderId" element={<Suspense fallback={<Loader />}><ReceptionManager /></Suspense>} />
               <Route path="magasin/reports" element={<Suspense fallback={<Loader />}><StockMovementReport /></Suspense>} />
+              
+              {/* Magasin2 (Warehouse) Routes */}
+              <Route path="magasin2" element={<Magasin2Dashboard />} />
+              <Route path="magasin2/inventory" element={<Suspense fallback={<Loader />}><Magasin2InventoryManager /></Suspense>} />
+              <Route path="magasin2/reception" element={<Suspense fallback={<Loader />}><Magasin2ReceptionList /></Suspense>} />
+              <Route path="magasin2/reception/:id" element={<Suspense fallback={<Loader />}><Magasin2ReceptionManager /></Suspense>} />
+              <Route path="magasin2/requests" element={<Suspense fallback={<Loader />}><Magasin2VendorRequests /></Suspense>} />
+              <Route path="magasin2/purchase" element={<Suspense fallback={<Loader />}><Magasin2PurchaseRequests /></Suspense>} />
+              <Route path="magasin2/purchase/create" element={<Suspense fallback={<Loader />}><Magasin2CreatePurchaseRequest /></Suspense>} />
+              <Route path="magasin2/purchase/test" element={<Suspense fallback={<Loader />}><TestProducts /></Suspense>} />
+              <Route path="magasin2/purchase/:id" element={<Suspense fallback={<Loader />}><Magasin2PurchaseRequestDetails /></Suspense>} />
             </Route>
             
             {/* 404 Route */}

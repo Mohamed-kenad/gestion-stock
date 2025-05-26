@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/components/ui/use-toast';
 import { 
   FileText, Search, Filter, Calendar, Eye, RefreshCw, Clock, CheckCircle2
 } from 'lucide-react';
@@ -40,8 +42,11 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
-// Mock data
-const mockApprovedOrders = [
+import { ordersAPI } from '../../../lib/api';
+import { useQuery } from '@tanstack/react-query';
+
+// Fallback mock data in case API fails
+const fallbackApprovedOrders = [
   { 
     id: 'PO-2025-002', 
     title: 'Commande légumes',
@@ -229,8 +234,9 @@ const mockApprovedOrders = [
 ];
 
 const ApprovedOrdersTracking = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -244,13 +250,45 @@ const ApprovedOrdersTracking = () => {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
+  // Fetch approved orders data using React Query
+  const { data: orders = [], isLoading: loading, error, refetch } = useQuery({
+    queryKey: ['approvedOrdersTracking'],
+    queryFn: () => {
+      console.log('Fetching approved orders tracking data...');
+      return ordersAPI.getApprovedOrdersTracking();
+    },
+    staleTime: 5000, // 5 seconds for more frequent updates during testing
+    refetchOnWindowFocus: true, // Refresh when window gains focus
+    refetchInterval: 10000, // Refresh every 10 seconds
+    retry: 3, // Retry failed requests 3 times
+  });
+
+  // Log orders data for debugging
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setOrders(mockApprovedOrders);
-      setLoading(false);
-    }, 800);
-  }, []);
+    console.log('Approved orders tracking data:', orders);
+    
+    // If we have no orders, try to refresh
+    if (orders.length === 0 && !loading) {
+      console.log('No approved orders found, trying to refresh...');
+      setTimeout(() => {
+        console.log('Refreshing approved orders data...');
+        refetch();
+        queryClient.invalidateQueries(['approvedOrdersTracking']);
+      }, 2000);
+    }
+  }, [orders, loading, refetch, queryClient]);
+  
+  // Handle error
+  useEffect(() => {
+    if (error) {
+      console.error('Error fetching approved orders tracking:', error);
+      toast({
+        title: "Erreur de chargement",
+        description: "Impossible de charger les bons approuvés. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
   // Filter orders based on search term, filters, and date range
   const filteredOrders = orders.filter(order => {
@@ -299,15 +337,7 @@ const ApprovedOrdersTracking = () => {
     setIsViewDialogOpen(true);
   };
 
-  // Handle refresh
-  const handleRefresh = () => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setOrders(mockApprovedOrders);
-      setLoading(false);
-    }, 800);
-  };
+  // This function is now handled by React Query's refetch
 
   // Get current status text
   const getCurrentStatusText = (order) => {
@@ -331,7 +361,7 @@ const ApprovedOrdersTracking = () => {
             Suivez l'état d'avancement des bons de commande que vous avez approuvés
           </p>
         </div>
-        <Button variant="outline" onClick={handleRefresh}>
+        <Button variant="outline" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Actualiser
         </Button>

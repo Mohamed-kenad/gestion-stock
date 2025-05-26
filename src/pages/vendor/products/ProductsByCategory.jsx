@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { productsAPI, categoriesAPI } from '../../../lib/api';
+import { productsAPI, categoriesAPI, bonsAPI } from '../../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, Package, ShoppingCart, Plus, 
@@ -49,7 +49,7 @@ const ProductsByCategory = () => {
   
   // State for filters and UI
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedCategories, setExpandedCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null); // Only one active category at a time
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
   const [stockFilter, setStockFilter] = useState('all');
@@ -83,37 +83,149 @@ const ProductsByCategory = () => {
       // Silent error handling - the API will return mock data
     },
     // Don't retry failed requests
-    retry: false
+    retry: false,
+    refetchInterval: 30000 // Refetch every 30 seconds to get newly priced products
+  });
+  
+  // Fetch bons to get products that have been priced by the Auditor
+  const {
+    data: bons = [],
+    isLoading: bonsLoading
+  } = useQuery({
+    queryKey: ['bons', 'ready_for_sale'],
+    queryFn: () => bonsAPI.getByStatus('ready_for_sale'),
+    onError: () => {
+      // Silent error handling
+    },
+    retry: false,
+    refetchInterval: 30000 // Refetch every 30 seconds
   });
   
   // Loading state
-  const isLoading = categoriesLoading || productsLoading;
+  const isLoading = categoriesLoading || productsLoading || bonsLoading;
   const hasError = categoriesError || productsError;
   
+  // Extract products from bons that have been priced by the Auditor with their selling prices
+  const pricedProducts = useMemo(() => {
+    // First, create a map of all products from bons with their complete information
+    const bonProductsMap = new Map();
+    
+    bons.forEach(bon => {
+      if (bon.status === 'ready_for_sale') {
+        bon.products?.forEach(product => {
+          if (product.readyForSale !== false) {
+            // Use ID as key, with fallbacks
+            const productId = product.id?.toString() || product.productId?.toString();
+            if (productId) {
+              bonProductsMap.set(productId, {
+                id: productId,
+                name: product.name,
+                category: product.category,
+                quantity: product.quantity || 0,
+                unit: product.unit || 'unité',
+                price: product.sellingPrice || 0, // Use selling price set by Auditor
+                sellingPrice: product.sellingPrice || 0,
+                purchasePrice: product.purchasePrice || 0,
+                readyForSale: true,
+                bundle: product.bundle || false,
+                bundleInfo: product.bundleInfo,
+                promotion: product.promotion || false,
+                promotionInfo: product.promotionInfo
+              });
+            }
+            
+            // Also map by name for products that might be referenced by name
+            if (product.name) {
+              bonProductsMap.set(product.name, {
+                id: productId || product.name,
+                name: product.name,
+                category: product.category,
+                quantity: product.quantity || 0,
+                unit: product.unit || 'unité',
+                price: product.sellingPrice || 0, // Use selling price set by Auditor
+                sellingPrice: product.sellingPrice || 0,
+                purchasePrice: product.purchasePrice || 0,
+                readyForSale: true,
+                bundle: product.bundle || false,
+                bundleInfo: product.bundleInfo,
+                promotion: product.promotion || false,
+                promotionInfo: product.promotionInfo
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    return bonProductsMap;
+  }, [bons]);
+  
+  // Extract just the IDs for filtering
+  const pricedProductIds = useMemo(() => {
+    return new Set(pricedProducts.keys());
+  }, [pricedProducts]);
+  
+  // Use products directly from bons that have been priced by the Auditor
+  const enhancedProducts = useMemo(() => {
+    return products.filter(product => {
+      // Check if this product is in our set of priced product IDs
+      return pricedProductIds.has(product.id?.toString()) || 
+             pricedProductIds.has(product.name);
+    }).map(product => {
+      // Add the selling price from our pricedProducts map
+      const pricedProduct = pricedProducts.get(product.id?.toString()) || pricedProducts.get(product.name);
+      if (pricedProduct) {
+        return {
+          ...product,
+          price: pricedProduct.price,
+          sellingPrice: pricedProduct.sellingPrice,
+          purchasePrice: pricedProduct.purchasePrice,
+          // Ensure we have the correct quantity and unit from the bon
+          quantity: pricedProduct.quantity || product.quantity,
+          unit: pricedProduct.unit || product.unit || 'unité'
+        };
+      }
+      return product;
+    });
+  }, [products, pricedProductIds, pricedProducts]);
+  
   // Filter products based on search term and stock filter
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = enhancedProducts.filter(product => {
     const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStock = 
-      stockFilter === 'all' || 
-      (stockFilter === 'low' && product.quantity <= (product.threshold || 10)) ||
-      (stockFilter === 'normal' && product.quantity > (product.threshold || 10));
+      stockFilter === 'all' ? true :
+      stockFilter === 'in_stock' ? (product.quantity > 0) :
+      stockFilter === 'low_stock' ? (product.quantity > 0 && product.quantity <= product.threshold) :
+      stockFilter === 'out_of_stock' ? (product.quantity <= 0) : true;
     
     return matchesSearch && matchesStock;
   });
   
-  // Group products by category
-  const productsByCategory = categories.map(category => {
-    const categoryProducts = filteredProducts.filter(product => 
-      product.categoryId === category.id || product.category === category.name
-    );
-    
-    return {
-      ...category,
-      count: categoryProducts.length,
-      products: categoryProducts
-    };
-  }).filter(category => category.count > 0);
+  // Group products by category - create a map of all categories with their products
+  const productsByCategory = useMemo(() => {
+    return categories.map(category => {
+      // Find products that belong to this category
+      const categoryProducts = filteredProducts.filter(product => {
+        // Check for different ways the category might be stored
+        return (
+          // Direct category ID match
+          (product.categoryId && product.categoryId.toString() === category.id.toString()) ||
+          // Direct category name match
+          (product.category && product.category.toLowerCase() === category.name.toLowerCase()) ||
+          // For numeric category IDs stored as numbers
+          (product.categoryId && parseInt(product.categoryId) === parseInt(category.id))
+        );
+      });
+      
+      // Return category with its products
+      return {
+        ...category,
+        count: categoryProducts.length,
+        products: categoryProducts
+      };
+    });
+  }, [categories, filteredProducts]);
   
   // Handle view product details
   const handleViewProduct = (product) => {
@@ -128,85 +240,74 @@ const ProductsByCategory = () => {
     
     toast({
       title: "Produit sélectionné",
-      description: "Vous pouvez maintenant créer un bon de commande avec ce produit.",
+      description: "Vous pouvez maintenant créer une commande avec ce produit",
     });
   };
   
   // Get stock status badge
   const getStockStatusBadge = (product) => {
-    if (!product.quantity && product.quantity !== 0) return <Badge variant="outline">Inconnu</Badge>;
-    
-    const isLow = product.quantity <= (product.threshold || 10);
-    
-    if (isLow) {
-      return <Badge variant="destructive">Stock bas</Badge>;
+    if (!product.quantity || product.quantity <= 0) {
+      return <Badge variant="destructive">Rupture de stock</Badge>;
+    } else if (product.quantity <= (product.threshold || 10)) {
+      return <Badge variant="warning" className="bg-amber-100 text-amber-800 hover:bg-amber-100">Stock bas</Badge>;
     } else {
-      return <Badge variant="outline">Normal</Badge>;
+      return <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">En stock</Badge>;
     }
   };
   
+  // Handle product selection for details
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setShowProductDetails(true);
+  };
+  
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="container py-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Produits par catégorie</h1>
+          <h1 className="text-3xl font-bold">Produits par catégorie</h1>
           <p className="text-muted-foreground">Consultez les produits disponibles par catégorie</p>
         </div>
-        <Button onClick={() => navigate('/dashboard/vendor/orders/create')}>
-          <ShoppingCart className="mr-2 h-4 w-4" />
-          Créer un bon de commande
-        </Button>
+        
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Rechercher un produit..."
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          <Select value={stockFilter} onValueChange={setStockFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Filtrer par stock" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les produits</SelectItem>
+              <SelectItem value="in_stock">En stock</SelectItem>
+              <SelectItem value="low_stock">Stock bas</SelectItem>
+              <SelectItem value="out_of_stock">Rupture de stock</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Filtres</CardTitle>
-          <CardDescription>Filtrez les produits par nom ou statut de stock</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Rechercher un produit..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-            <Select value={stockFilter} onValueChange={setStockFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Statut du stock" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les produits</SelectItem>
-                <SelectItem value="low">Stock bas</SelectItem>
-                <SelectItem value="normal">Stock normal</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Products by Category */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? (
           // Loading skeleton
-          Array(6).fill(0).map((_, index) => (
+          Array.from({ length: 6 }).map((_, index) => (
             <Card key={index} className="overflow-hidden">
               <CardHeader className="pb-2">
-                <Skeleton className="h-6 w-24" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-5 w-16" />
                 </div>
-              </CardContent>
+                <Skeleton className="h-4 w-48 mt-1" />
+                <Skeleton className="h-8 w-full mt-2" />
+              </CardHeader>
             </Card>
           ))
         ) : hasError ? (
@@ -217,88 +318,103 @@ const ProductsByCategory = () => {
               {categoriesError?.message || productsError?.message || "Une erreur s'est produite"}
             </p>
           </div>
-        ) : productsByCategory.length === 0 ? (
+        ) : categories.length === 0 ? (
           <div className="col-span-3 flex flex-col items-center justify-center py-12">
             <Package className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-xl font-medium">Aucun produit trouvé</h3>
-            <p className="text-muted-foreground mt-2">Aucun produit ne correspond à votre recherche</p>
+            <h3 className="text-xl font-medium">Aucune catégorie trouvée</h3>
+            <p className="text-muted-foreground mt-2">Aucune catégorie n'est disponible dans le système</p>
           </div>
         ) : (
-          productsByCategory.map((category) => (
-            <Card key={category.id} className="overflow-hidden">
-              <CardHeader className="pb-2">
-                <Collapsible open={expandedCategories.includes(category.id)} onOpenChange={(open) => {
-                  setExpandedCategories(open 
-                    ? [...expandedCategories, category.id]
-                    : expandedCategories.filter(id => id !== category.id)
-                  );
-                }}>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center">
-                      <span className="mr-2">{category.icon || '📦'}</span>
-                      {category.name}
-                    </CardTitle>
-                    <Badge variant="outline">{category.count} produits</Badge>
-                  </div>
-                  <CardDescription className="mt-1.5">
-                    Produits disponibles dans cette catégorie
-                  </CardDescription>
-                  
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-full mt-2 flex justify-between items-center">
-                      <span>Voir les produits</span>
-                      {expandedCategories.includes(category.id) ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent className="mt-2">
-                    <ScrollArea className="h-[200px]">
-                      <div className="space-y-2">
-                        {category.products.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">
-                            Aucun produit dans cette catégorie
-                          </div>
+          categories.map((category) => {
+            // Get the products for this category from our productsByCategory
+            const categoryData = productsByCategory.find(c => c.id === category.id) || {
+              ...category,
+              count: 0,
+              products: []
+            };
+            
+            return (
+              <Card key={category.id} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <Collapsible 
+                    open={activeCategory === category.id} 
+                    onOpenChange={(open) => {
+                      // When opening, set this as the active category
+                      // When closing, clear the active category
+                      setActiveCategory(open ? category.id : null);
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center">
+                        <span className="mr-2">{category.icon || '📦'}</span>
+                        {category.name}
+                      </CardTitle>
+                      <Badge variant="outline">{categoryData.count} produits</Badge>
+                    </div>
+                    <CardDescription className="mt-1.5">
+                      Produits disponibles dans cette catégorie
+                    </CardDescription>
+                    
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full mt-2 flex justify-between items-center">
+                        <span>Voir les produits</span>
+                        {activeCategory === category.id ? (
+                          <ChevronDown className="h-4 w-4" />
                         ) : (
-                          category.products.map((product) => (
-                            <div 
-                              key={product.id} 
-                              className="p-2 rounded-md hover:bg-muted flex justify-between items-center cursor-pointer"
-                              onClick={() => handleViewProduct(product)}
-                            >
-                              <div>
-                                <div className="font-medium">{product.name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  Stock: {product.quantity || 0} {product.unit || 'unité'}
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent className="mt-2">
+                      <ScrollArea className="h-[200px]">
+                        <div className="space-y-2 p-2">
+                          {categoryData.products.length > 0 ? (
+                            categoryData.products.map(product => (
+                              <div
+                                key={product.id}
+                                className="p-2 rounded-md hover:bg-muted flex justify-between items-center cursor-pointer"
+                                onClick={() => handleProductSelect(product)}
+                              >
+                                <div>
+                                  <div className="font-medium">{product.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Stock: {product.quantity || 0} {product.unit || 'unité'}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-medium text-green-700">
+                                    Prix de vente: {(product.sellingPrice || product.price || 0).toFixed(2)} DH
+                                  </div>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddToOrder(product.id);
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <div className="font-medium">{(product.price || 0).toFixed(2)} DH</div>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAddToOrder(product.id);
-                                  }}
-                                >
-                                  <ShoppingCart className="h-4 w-4" />
-                                </Button>
-                              </div>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center">
+                              <AlertTriangle className="h-8 w-8 mx-auto text-amber-500 mb-2" />
+                              <p className="text-sm text-muted-foreground">Aucun produit disponible dans cette catégorie</p>
+                              <p className="text-xs text-muted-foreground mt-1">Les produits doivent être tarifés par l'Auditeur avant d'être disponibles</p>
                             </div>
-                          ))
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </CollapsibleContent>
-                </Collapsible>
-              </CardHeader>
-            </Card>
-          ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </CardHeader>
+              </Card>
+            );
+          })
         )}
       </div>
       
@@ -324,8 +440,8 @@ const ProductsByCategory = () => {
                   <p className="text-base">{selectedProduct.category}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground">Prix</h4>
-                  <p className="text-base">{(selectedProduct.price || 0).toFixed(2)} DH</p>
+                  <h4 className="text-sm font-medium text-muted-foreground">Prix de vente</h4>
+                  <p className="text-base font-bold text-green-700">{(selectedProduct.sellingPrice || selectedProduct.price || 0).toFixed(2)} DH</p>
                 </div>
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground">Unité</h4>
